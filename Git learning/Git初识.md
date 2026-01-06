@@ -1,20 +1,3 @@
-# 建立Git仓库
-
-1. 把已有的项目代码纳入Git仓库
-
-``` c++
-$cd项目代码所在的文件夹
-$git init
-```
-
-2. 新建的项目直接用Git管理
-
-``` c++
-$cd某个文件夹
-$git init your_project  //会在当前的路径下创建和项目名称同名的文件夹
-$cd your_project
-```
-
 # Git 命令
 
 
@@ -51,17 +34,51 @@ $cd your_project
 ## 查看配置信息
 
 ```C++
+git config --list --作用域(global system local)
 git config --giobal user.name 
 git config --global user.email 
 ```
 
 ## confine的三个作用域
 
+> local 只对某个仓库有效
+>
+> global对当前用户所有仓库有效
+>
+> system对系统所有登录的用户有效
+
 ```c++
 1. git config —local
 2. git config —global
 3. git config —system
 ```
+
+# 建立Git仓库
+
+1. 把已有的项目代码纳入Git仓库
+
+``` c++
+$cd项目代码所在的文件夹
+$git init
+```
+
+2. 新建的项目直接用Git管理
+
+``` c++
+$cd某个文件夹
+$git init your_project  //会在当前的路径下创建和项目名称同名的文件夹
+$cd your_project
+```
+
+
+
+
+
+
+
+
+
+
 
 
 
