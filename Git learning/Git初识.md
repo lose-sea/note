@@ -70,7 +70,13 @@ $git init your_project  //会在当前的路径下创建和项目名称同名的
 $cd your_project
 ```
 
+### 删除创建的git文件
 
+```c++
+rm -rf .git
+```
+
+在global 和 local 两个作用范围中, local当前设置的属性优先级更高
 
 
 
