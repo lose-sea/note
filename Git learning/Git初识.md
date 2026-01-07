@@ -58,16 +58,16 @@ git config --global user.email
 1. 把已有的项目代码纳入Git仓库
 
 ``` c++
-$cd项目代码所在的文件夹
-$git init
+cd项目代码所在的文件夹
+git init
 ```
 
 2. 新建的项目直接用Git管理
 
 ``` c++
-$cd某个文件夹
-$git init your_project  //会在当前的路径下创建和项目名称同名的文件夹
-$cd your_project
+cd某个文件夹
+git init your_project  //会在当前的路径下创建和项目名称同名的文件夹
+cd your_project
 ```
 
 ### 删除创建的git文件
@@ -78,44 +78,23 @@ rm -rf .git
 
 在global 和 local 两个作用范围中, local当前设置的属性优先级更高
 
+```C++
+export LANG="zh_CN.UTF-8" 
+export LC_ALL="zh_CN.UTF_8"
+```
 
+# 基础操作指令
 
+Git工作目录下对于文件的修改(增加, 删除, 更新)会存在几个状态, 这些修改的状态会随着我们执行的GIt的命令而发生变化
 
-
-
-
-
-
-
-
-## 为常用指令配置别名
-
-有些常用的指令参数非常多,每次都要输入好多参数,我们可以使用别名
-
-1. 打开用户目录, 创建`.bashrc`文件
-
-部分windws系统不允许用户创建点好开头的文件, 可以打开gitBash执行`touch ~/.bashrc` 
-
-2. 在`.bashrc`文件中输入如下内容
+![3c765a20-8a0e-484b-a912-4b6b807a97a2 (1)](/Users/lose_sea/Downloads/3c765a20-8a0e-484b-a912-4b6b807a97a2 (1).jpeg)
 
 ```c++
-#用于输出git提交日志
-alias git-log='git log --pretty=oneline --all --graph --abbrev-commit'
-#用于输出当前目录所有文件及基本信息
-alist ll='ls -al'
+git add (工作区 -> 暂存区) 
+git commit (暂存区 -> 本地仓库)
 ```
 
-3. 打开gitBash, 执行`source ~/.bashrc` 
+查看修改的状态(status) 
 
-## 解决GitBash乱码问题
-
-1. 打开GitBash执行下面命令
-
-```C++
-git config --global core.quotepath false
-```
-
-2. $(git_home)/stc/bash.bashrc (git_home 是指git的安装目录) 文件最后加入下面两行
-
-
-
+1. 作用: 查看修改的状态 (暂存区, 工作区) 
+2. 命令形式: git status
