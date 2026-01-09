@@ -120,10 +120,12 @@ git commit (暂存区 -> 本地仓库)
 > 命令形式: git log [option] 
 >
 >  + option 
->    + --all 显示所用fenz
+>    + --all 显示所用分支
 >    + --pretty=oneline 将提交信息显示为一行
 >    + --abbrev-commit 使得输出的commitld更简短
 >    + --graph 以图的形式显示
+>    
+>    
 
 ### 版本回退 
 
