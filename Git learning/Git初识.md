@@ -105,7 +105,15 @@ git commit (暂存区 -> 本地仓库)
 >
 > 命令形式: `git add 单个文件名|通配符` 
 >
-> ​		`git add .`将所有修改加入到暂存区
+> ​		`git add .`将所有修改加入到暂存区 
+
+### 清除暂存区的内容
+
+> `git rm --cached 文件名` 
+>
+> 例如: 
+>
+> `git rm --cached file01` 
 
 ### 提交暂存区到本地仓库 (commit) 
 
