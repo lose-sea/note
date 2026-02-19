@@ -87,8 +87,6 @@ export LC_ALL="zh_CN.UTF_8"
 
 Git工作目录下对于文件的修改(增加, 删除, 更新)会存在几个状态, 这些修改的状态会随着我们执行的GIt的命令而发生变化
 
-![3c765a20-8a0e-484b-a912-4b6b807a97a2 (1)](/Users/lose_sea/Downloads/3c765a20-8a0e-484b-a912-4b6b807a97a2 (1).jpeg)
-
 ```c++
 git add (工作区 -> 暂存区) 
 git commit (暂存区 -> 本地仓库)
@@ -141,7 +139,7 @@ git commit (暂存区 -> 本地仓库)
 >
 > 命令形式: git reset -head commitID
 >
-> + commitID 可以使用`git -log 或 git log`指令查看
+> + commitID 可以使用` git log`指令查看
 >
 > 如何查看已经删除的记录
 >
