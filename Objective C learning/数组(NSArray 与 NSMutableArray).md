@@ -443,14 +443,6 @@ Objective-C 还提供了一种快速枚举的方法来遍历集合 (包括 NSArr
 
 快速枚举的语法格式如下：
 
-plaintext
-
-
-
-
-
-
-
 ```objc
 for(type variableName in collection) {
     // variableName 自动访问每个元素…

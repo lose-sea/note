@@ -207,3 +207,96 @@ int main(int argc , char * argv[])
 
 > 返回值为 YES 时, 将key 加入到当前结果
 
+## 使用自定义类作为 NSDictionary 的key
+
+  如果使用自定义类作为 NSDictionary的key, 则自定义类必须要满足如下条件. 
+
+1. 自定义正确重写过 isEqual 和 hash 方法, (正确重写是指当两个对象通过isEqual: 方法判断相等时, 两个对象的hash 方法的返回值也相等 ) 
+2. 该自定义类必须实现copyWithZone: 方法, 该方法最好返回该对象的不可变副本. (当程序把对个key-value对放入 NSDictionary集合, 对于NSDictionary 而言, key是非常关键的, NSDictionary 需要根据key来访问 value– 从这个意义上看, key相当于 NSDictionary 元素的索引, 如果key本身是可变的, 且程序可以通过其他变量来修改 NSDictionary 的key, 这可能导致NSDictionary 的 “索引值”被破坏, 从而导致NSDictionary 的完整体性被破坏) 
+
+**为了让自定义的类可作为 NSDictionary 的key, 还需要让该类实现 NSCopying协议**
+
+```objective-c
+- (id)copyWithZone:(NSZone *)zone {
+    NSLog(@"--正在复制--");
+    // 复制一个对象
+    FKUser* newUser = [[[self class] allocWithZone:zone] init];
+    
+    // 将被复制对象的实例变量的值赋给新对象的实例变量
+    newUser->name = name;
+    newUser->pass = pass;
+    return newUser;
+}
+```
+
+当程序调用copy方法来复制该 key 的不可变副本, 实际是以该副本作为 NSDIctionary的key, 因此, 再对key 进行修改, NSDIctionary 的所有key 并不会受到任何影响. 
+
+## NSMutableDIctionary 的功能和用法
+
+NSMutableDictionary 相对于 NSDIctionary 添加了key-vlaue, 删除key-value的方法,主要新增了以下方法: 
+
++ setObject:forKey: 设置一个 key-value 对。如果 NSDictionary 中没有包含与该 key 相同的 key-value 对，那么 NSDictionary 将会新增一个 key-value 对；否则该 key-value 对将会覆盖已有的 key-value 对。
++ setObject:forKeyedSubscript: 通过该方法的支持，允许程序通过下标法来设置 key-value 对。
++ addEntriesFromDictionary: 将另一个 NSDictionary 中所有的 key-value 对复制到当前 NSMutableDictionary 中。
++ setDictionary: 用另一个 NSDictionary 中所有的 key-value 对替换当前 NSMutableDictionary 中的 key-value 对. 
++ removeObjectForKey: 根据 key 来删除 key-value 对。
++ removeAllObjects: 清空该 NSDictionary。
++ removeObjectsForKeys: 使用多个 key 组成的 NSArray 作为参数，同时删除多个 key 对应的 key-value 对。
+
+
+> 1. NSMutableDictionary* dict = [NSMutableDictionary dictionaryWithObjectsAndKeys:// 格式：值 , 键 , 值 , 键 , ... , nil]；  
+> 2. key 值如果与已有的key值重复, 会覆盖原来的key-value对
+
+```objective-c
+#import<Foundation/Foundation.h>
+
+@interface NSDictionary (print)
+- (void)print;
+@end
+
+
+@implementation NSDictionary (print)
+- (void)print
+{
+    NSMutableString *result = [NSMutableString stringWithString:@"["];
+    for (id key in self) {
+        [result appendString:[key description]];
+        [result appendString:@" = "];
+        [result appendString: [[self objectForKey: key] description]];
+        [result appendString:@", "];
+    }
+    NSUInteger len = [result length];
+    if (len > 2) {
+        // 去掉字符串最后一个", "
+        [result deleteCharactersInRange:NSMakeRange(len - 2, 2)];
+    }
+    [result appendString:@"]"];
+    NSLog(@"%@", result);
+}
+@end
+
+int main(int argc, char* argv[]) {
+    @autoreleasepool {
+        // 使用单个key-value对创建NSMutableDictionary对象
+        NSMutableDictionary* dict = [NSMutableDictionary dictionaryWithObjectsAndKeys: [NSNumber numberWithInt: 89], @"疯狂iOS讲义", nil];
+        [dict print];
+        // 使用下标法设置 key-value 对, 由于NSDictionary 中已经存在该key, 会覆盖
+        dict[@"疯狂iOS讲义"] = [NSNumber numberWithInt:99];
+        [dict print];
+        
+        dict[@"hello"] = [NSNumber numberWithInt: 87];
+        [dict print];
+        // 将另一个NSDIctionary中的key-value 对添加到当前的 NSDIctionary中
+        NSDictionary* dict2 = [NSDictionary dictionaryWithObjectsAndKeys:@"hello",[NSNumber numberWithInt: 54], @"xinyan", [NSNumber numberWithInt: 89],  @"world", [NSNumber numberWithInt: 32], nil];
+        [dict addEntriesFromDictionary: dict2];
+        [dict print];
+        
+        // 根据key 删除 key-value对
+        [dict removeObjectForKey: @"hello"];
+        [dict print];
+    }
+    return 0;
+}
+
+```
+
