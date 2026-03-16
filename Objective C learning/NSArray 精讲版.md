@@ -91,7 +91,7 @@ arr[i];
 
 ## 从索引 m 开始, 与后面 n 个元素组成新集合
 
-```objective-c
+```objc
 int main(int argc, char* argv[]) {
     NSArray* arr = [[NSArray alloc] initWithObjects: @"hello", @"xinyan", @"world", @"iOS", nil];
     NSIndexSet* indexSet = [NSIndexSet indexSetWithIndexesInRange :NSMakeRange(1, 3)];
@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
 
 输出: 
 
-```objective-c
+```objc
 (
     xinyan,
     world,
