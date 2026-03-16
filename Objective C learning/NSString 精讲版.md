@@ -62,7 +62,7 @@ NSString* str = @"hello world";
 
 #### 普通初始化
 
-`[str stringWithString: @"hello"]; `
+`[NSString stringWithString: @"hello"]; `
 
 #### 格式化
 
