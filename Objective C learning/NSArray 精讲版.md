@@ -303,3 +303,118 @@ int main(int argc, char* argv[]) {
 
 ## 对NSArray进行排序
 
+```objc
+// 定义比较函数
+NSComparisonResult intSort(id num1, id num2, void* conrtext) {
+    int v1 = [num1 intValue];
+    int v2 = [num2 intValue];
+    if (v1 > v2) {
+        return NSOrderedAscending;
+    }
+    if (v1 < v2) {
+        return NSOrderedDescending;
+    }
+    return NSOrderedSame;
+}
+int main(int argc, char* argv[]) {
+    NSArray* arr = @[[NSNumber numberWithInt: 3], [NSNumber numberWithInt: 6], [NSNumber numberWithInt: 5]];
+    NSArray* arr1 = [arr sortedArrayUsingFunction: intSort context: nil];
+    NSLog(@"%@", arr);
+    NSLog(@"%@", arr1);
+    return 0;
+}
+```
+
+输出: 
+
+```objc
+(
+    3,
+    6,
+    5
+)
+(
+    6,
+    5,
+    3
+)
+```
+
+> 返回 NSOrderedAscending  → num1 排在 num2 **前面**
+> 返回 NSOrderedDescending → num1 排在 num2 **后面**
+
+# 使用枚举器遍历NSArray集合 
+
+除了根据集合的索引类遍历集合之外, 还可以调用NSArray对象的如下两种功能方法来返回枚举器 
+
++ `objectEnumerator: `返回NSArray集合的顺序枚举器 
+
++ `reverseObjectEnumerator: `返回 NSArray 集合的逆序枚举器
+
+  上面两个方法都返回一个NSEnumerator 枚举器, 该枚举器只包含如下两种方法
+
+  + `allObject: `获取被枚举集合中的所有集合 
+  + `nextObject: `获取被枚举集合中的下一个元素 
+
+可以借助nextObject 方法即可对集合元素进行枚举, 程序可采用循环不断获取nextObject 方法的返回值, 直到该方法的返回值为nil 结束循环
+
+```objc
+int main(int argc, char* argv[]) {
+    NSArray* arr = @[[NSNumber numberWithInt: 3], [NSNumber numberWithInt: 6], [NSNumber numberWithInt: 5]];
+    NSLog(@"%@", arr);
+    arr = [arr arrayByAddingObjectsFromArray: [NSArray arrayWithObjects: [NSNumber numberWithInt: 4], [NSNumber numberWithInt: 9], [NSNumber numberWithInt: 5], nil]];
+    NSEnumerator* en = [arr objectEnumerator];
+    id object;
+    while (object = [en nextObject]) {
+        NSLog(@"%@", object);
+    }
+    NSLog(@"%@", object);
+    NSLog(@"开始逆序便利");
+    en = [arr reverseObjectEnumerator];
+    while (object = [en nextObject]) {
+        NSLog(@"%@", object);
+    }
+    return 0;
+}
+```
+
+# 快速枚举
+
+Objective-C还提供了一种快速枚举的方法来遍历集合 使用快速枚举遍历集合元素时, 无需获得集合的长度, 也无须根据索引来访问集合元素, 即可快速枚举自动遍历集合的每个元素 
+
+```objc
+int main(int argc, char* argv[]) {
+    NSArray* arr = @[[NSNumber numberWithInt: 3], [NSNumber numberWithInt: 6], [NSNumber numberWithInt: 5]];
+    arr = [arr arrayByAddingObjectsFromArray: [NSArray arrayWithObjects: [NSNumber numberWithInt: 4], [NSNumber numberWithInt: 9], [NSNumber numberWithInt: 5], nil]];
+    NSLog(@"%@", arr);
+    for (id object in arr) {
+        NSLog(@"%@", object);
+    }
+    return 0;
+}
+```
+
+# mutableArray 
+
+## 添加一个元素
+
+`[array addObject: @"hello"]; `
+
+## 添加多个元素
+
+`[array addObjectsFromArray: [NSArray arrayWithObjects: @"hello", @"world", nil]]; `
+
+## 向指定位置插入一个元素
+
+`[array insertObject: @"hello" atIndex: 2]; `
+
+## 向指定位置插入多个元素
+
+`[array insertObject: [NSArray arrayWithObject: @"hello", @"xinya", niil] atIndexes: [NSIndexSet indexSetWithIndexInrange: NSMakeRange(3, 3)]]; ` 
+
+**NSMakeRange (m, n) 中第一个参数是插入位置的索引, 第二个参数是插入元素的个数, 如果参数和实际插入元素的数量不符, 就会报错**
+
+## 删除最后一个元素
+
+`[array removeLastsObject]; ` 
+
