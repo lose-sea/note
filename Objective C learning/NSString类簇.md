@@ -36,7 +36,7 @@ NSString *str = @"hello"; // 字面量
 // 引用计数无限大，永远不会释放
 // 相同字面量全程只有一份
 NSString *str2 = @"hello";
-NSLog(@"%p %p", str, str2); // 同一地址 ✅
+NSLog(@"%p %p", str, str2); // 同一地址
 ```
 
 **② NSTaggedPointerString（Tagged Pointer字符串）**
@@ -72,10 +72,10 @@ NSString（抽象类）
 ```
 
 ```objc
-// ❌ isMemberOfClass 永远失败
+// isMemberOfClass 永远失败
 [str isMemberOfClass:[NSString class]]; // NO
 
-// ✅ 用 isKindOfClass
+//  用 isKindOfClass
 [str isKindOfClass:[NSString class]];   // YES
 ```
 
