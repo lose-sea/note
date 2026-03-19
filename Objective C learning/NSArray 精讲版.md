@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
 >
 > 查找元素时，**必须判断是否等于 `NSNotFound`**，否则会用一个错误的索引去访问数组导致崩溃	
 
-## 获取元素在指定范围的位置 
+## 获取元素在指定范围的位置
 
 ```objective-c
 int main(int argc, char* argv[]) {
@@ -154,6 +154,10 @@ int main(int argc, char* argv[]) {
 ```
 
 如果在索引 (m, n) 的范围没有要查找的元素, 就会返回`NSNotFound (9223372036854775807)` 如果找到, 就返回该元素在数组中的索引
+
+## 判断两个数组是否相等
+
+`[arrat isEuqalToSet: array1]; ` 
 
 ## 向一个数组末尾追加一个元素 (原数组不变, 返回新数组)
 
