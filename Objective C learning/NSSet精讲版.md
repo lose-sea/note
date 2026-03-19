@@ -190,11 +190,6 @@ int main(int argc, char* argv[]) {
 }
 ```
 
-NSSet 的去重逻辑是：
-
-1. 先比较 `hash` 值，hash 不同 → 直接认为不同对象
-2. hash 相同 → 再调用 `isEqual:` 判断是否真正相等
-
 
 
 从输出可以看出, user1 和 user2 的name 和pass 都相等, 但由于程序没有重写他们的hash方法, 因此这两个User 的 hashCode 值不相等 ,NSSet 依然认为他们不相等,NSset 会同时存储两个元素
@@ -204,5 +199,82 @@ NSSet 的去重逻辑是：
 为User类重写hash 方法, 重写hash 方法根据name , pass两个成员变量的值进行计算
 
 ```objc
+- (NSUInteger) hash {
+    NSLog(@"=== hash ===");
+    NSUInteger nameHash = self->_name == nil ? 0 : [_name hash];
+    NSUInteger passHash = self->_pass == nil ? 0 : [_pass hash];
+    return nameHash * 31 + passHash;
+}
 ```
+
+重新运行,发现输出还是 3 .没有去重, **这是因为只实现了 hash, 没有实现 `isEaqual`**
+
+NSSet 的去重逻辑是：
+
+1. 先比较 `hash` 值，hash 不同 → 直接认为不同对象
+2. hash 相同 → 再调用 `isEqual:` 判断是否真正相等
+
+**缺少 `isEqual:` 时，`isEqual:` 默认继承自 `NSObject`，比较的是指针地址**，user1 和 user2 虽然内容相同，但是两个不同的对象，指针不同 → `isEqual:` 返回 NO → NSSet 认为它们是不同对象 → 不去重 → 结果是 3。
+
+重写 isEqual; 
+
+```objc
+- (BOOL) isEqual: (id) other {
+    if (self == other) {
+        return YES;
+    }
+    if (other != nil && [other isMemberOfClass: [User class]]) {
+        User* target = (User*) other;
+        return [self.name isEqual: target.name] && [self.pass isEqual: target.pass];
+    }
+    return NO;
+}
+```
+
+**把一个对象放入NSSet中, 若重写该对象对应的 isEqual: 方法, 也应该重写其hash方法, 如果两个对象通过isEqual: 方法比较返回YES, 那么这两个对象的hash 方法的返回值也应该相同** 
+
+# NSMutableSet
+
+`addObject: `向集合中添加的单个元素 
+
+`removeObject: `从集合中删除单个元素
+
+`removeAllObjects: `删除集合中所有元素  
+
+`addObjectsFromArray: `使用NSArray数组作为参数, 向NSSet 集合中添加参数数组中的所有元素
+
+`unionSet:` 计算两个NSSet 集合的并集
+
+`minusSet: `计算两个NSSet 集合的差集 
+
+`intersectSet: `计算两个NSSet 集合的差集
+
+`setSet: `用后一个集合的元素替换已有元素中的所有的元素 
+
+```objc
+int main(int argc, char* argv[]) {
+    @autoreleasepool {
+        NSMutableSet* set = [NSMutableSet setWithObjects: @"hello", @"xinyan", nil];
+        [set addObject: @"swift"];
+//        [set removeObject: @"hello"];
+//        [set removeAllObjects];
+        NSArray* arr = [[NSArray alloc] initWithObjects: @"python", @"java", nil];
+//        [set addObjectsFromArray: arr];
+        NSSet* set1 = [NSSet setWithArray: arr];
+        [set unionSet: set1];
+//        [set minusSet: set1];
+//        [set intersectSet: set1];
+        [set setSet: set1]; 
+        NSLog(@"%@", set);
+        
+    }
+    return 0;
+}
+```
+
+# NSCountedSet 功能与用法
+
+NSCountedSet 是 NSMutable 的子集, 当程序向NSCountedSet 中添加一个元素, 如果NSCountedSet 集合中不包含该元素, 那么 NSCountedSet 真正接纳该元素, 并将该元素的添加次数标记为1 , 如过已经包含该元素, 这会将该元素的添加次数加一; 
+
+当程序从NSCountedSet 集合中删除元素时, NSCountedSet只是将该元素的添加次数减一, 只有当该元素的添加次数变为 0 ,该元素才会真正从 NSCountedSet 集合中删除
 
