@@ -122,7 +122,87 @@ NSArray* arr = [dict keysSortedByValueUsingComparator: ^(id value1, id value2) {
 
 `keysOfEntriesPassingTest:`使用代码块迭代处理NSDictionary 的每一个key-value 对, 该代码块必须返回BOOL 类型的值, 当返回yes时, 该key 才会bei留下来, 该代码块可以接受 3 个参数, 第一个参数代表正在迭代处理的key, 第二个参数代表正在处理的value, 第三个参数代表是否还需要继续迭代, 如果将第三个参数设置为YES,迭代就会停止.  
 
-`keysOfEntriesWithOption: passingTest: ` 
+`keysOfEntriesWithOption: passingTest: ` 可以额外传入一个附加的 NSEnumerationOption选项参数
+
+```objc
+int main(int argc, char* argv[]) {
+    NSDictionary* dict = [NSDictionary dictionaryWithObjectsAndKeys: @"hello", [NSNumber numberWithInt: 8], @"xinyan", [NSNumber numberWithInt: 3], @"pythonswift", [NSNumber numberWithInt: 7], nil];
+    NSSet* set = [dict keysOfEntriesPassingTest: ^(id key, id value, BOOL* stop) { 
+        // 筛选出value 的长度大于 5 的元素的key值, 返会由符合条件的key组成的set
+        return (BOOL)([value length] > 5);
+    }];
+    NSLog(@"%@", set);
+    NSLog(@"%@", [dict objectsForKeys: [set allObjects] notFoundMarker: @"not found"]);
+    return 0;
+}
+```
+
+## 使用自定义的类作为NSDictionary的key值
+
+要使用自定义的类作为NSDictionary的key值, 这自定义的类必须满足如下两个条件
+
+1. 该自定义类正确重写过isEqual: 和 hash 方法, (两个对象通过isEqual: 方法判断相等时, 两个对象的hash 方法的返回值也相等)
+2. 该自定义类必须实现了copyWithZone: 方法, 最好返回该对象的不可变副本
+
+当程序把多个key-value 对放入NSDictionary 集合之后, 对于NSDictionary而言, key是非常重要的, NSDictionary 需要根据key来访问 value, 如果key 是可变的, 就可能导致NSDictionary 的索引被破坏, 从而导致NSDictionary 的完整性被破坏
+
+为了避免上面的问题, NSDictionary 采用了更安全的做法, 只要程序把任何对象都作为key 返图NSDictionary 中, NSDictionary 总会调用key的copy 方法来复制该对象的不可变副本, 然后使用该副本作为NSDictionary 的key
+
+```objc
+#import"User.h"
+int main(int argc, char* argv[]) {
+    NSDictionary* dict = [NSDictionary dictionaryWithObjectsAndKeys:
+                          @"one", [[User alloc] initWithName: @"John" Pass: @"123"],
+                          @"two", [[User alloc] initWithName: @"make" Pass: @"345"],
+                          @"three", [[User alloc] initWithName: @"xinyan" Pass: @"654"],
+                    nil];
+    NSLog(@"%ld", [dict count]);
+    NSLog(@"%@", dict);
+    return 0;
+}
+```
+
+输出: 
+
+```objc
+====== copy =========
+====== copy =========
+====== copy =========
+3
+{
+    "Name = make, pass = 345" = two;
+    "Name = xinyan, pass = 654" = three;
+    "Name = John, pass = 123" = one;
+}
+```
 
 
+
+# NSMutableDictionary
+
+NSMutableDictionary 主要新增了如下方法: 
+
+1. `setObject: forKey:`设置一个key-value对, 如果NSDictionary 中没有包含与该 key 相同的key-value 对, 那么NSDictionary 将会增加一个 key-value 对, 否则key-value 对将会覆盖已有的 key-value 对 
+
+   `[dict setValue: @"java" forKey: @"one"];`
+
+2. `setObject: forFromDictionary: `将另一个NSDictionary中的key-value对添加到当前NSDictionary中  
+
+   `[dict1 addEntriesFromDictionary: dict];`
+
+3. `setDictionary: ` 用另一个NSDictionary 中的key-value对替换当前NSDictionary中的key-value 对 
+
+   `  [dict1 setDictionary: dict];`
+
+4. `removeObjectForKey: `根据key 来删除key-value对
+
+   `dict1 removeObjectForKey: @"one"];`
+
+5. `removeAllObject `清空该 NSDictionary  
+
+   `[dict1 removeAllObjects];`
+
+6. `removeObjectsForKeys: ` 使用**多个key组成的key组成的NSArray** 作为参数, 同时删除多个key-value 
+
+`[dict removeObjectsForKeys: [NSArray arrayWithObjects: @"one", @"two",  nil]];`
 
