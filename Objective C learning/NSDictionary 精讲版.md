@@ -1,4 +1,4 @@
-# NSDictionary 
+# NSDictionary
 
 NSDictionary 用于保存具有映射关系的数据, NSDictionary 集合里保存着两组值, 一组值用于保存NSDictionary 里的key, 另一组值用于保存NSDictionary 里的value, key 和 value 都可以
 
