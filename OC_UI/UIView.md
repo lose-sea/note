@@ -113,3 +113,95 @@ view.alpha = 0.5;
 }
 ```
 
+### 在不同阶段调用的方法
+
+#### 
+
+```objc
+// 第一次程序加载视图时调用
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // Do any additional setup after loading the view.
+    UIView* view = [[UIView alloc] init];
+    view.frame = CGRectMake(100, 100, 100, 200]; 
+    view.backgroundColor = [UIColor orangeColor];
+    self.view.backgroundColor = [UIColor blueColor];
+    [self.view addSubview: view];
+}
+```
+
+第一次程序加载视图时候会调用`viewDidLoad()`方法
+
+当内存过低的时候会调用`didReceiveMemoryWarning()` 方法 
+
+```objc
+// 当内存过低时, 会发起警告, 调用此函数
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    ... 
+}
+```
+
+视图分为: 
+
+1. 显示前
+2. 正在处于显示状态
+3. 已经被隐藏 
+
+当视图即将显示时候, 会调用`viewWillAppear: (BOOL)animated` 方法  
+
+后面的BOOL类型参数表示是用动画切换后显示
+
+```objc
+// 当视图即将调用的时候, 会调用此函数
+- (void)viewWillAppear:(BOOL)animated {
+    NSLog(@"视图即将显示"); 
+}
+```
+
+当视图已经显示到屏幕后的瞬间调用`viewDidAppear: (BOOL)animated` 函数 
+
+参数: 表示是否用动画切换显示的 
+
+当前状态已经显示到屏幕
+
+```objc
+// 当视图已经显示在屏幕后的瞬间调用吃函数
+- (void)viewDidAppear: (BOOL)animated {
+    NSLog(@"视图已经显示在屏幕");
+}
+```
+
+当视图即将消失的时候, 会调用`viewWillDisappear: (BOOL)animated` 方法  
+
+后面的BOOL类型参数表示是用动画切换后消失 
+
+当前的状态: 视图还是显示在屏幕上的
+
+```objc
+// 当视图即将消失的时候, 会调用此函数
+- (void)viewWillDisappear:(BOOL)animated {
+    NSLog(@"视图即将消失"); 
+}
+```
+
+ 当视图已经消失的时候, 会调用`viewDidDisappear: (BOOL)animated` 方法  
+
+后面的BOOL类型参数表示是否动画切换显示的
+
+当前的状态: 视图已经从屏幕上消失
+
+```objc
+// 当视图已经消失的时候, 会调用此函数
+- (void)viewDisappear:(BOOL)animated {
+    NSLog(@"视图已经消失");
+}
+```
+
+  
+
+### `viewWillAppear:` 和 `viewDidLoad` 的区别
+
++ `viewWillAppear: `在每一次显示都会调用
++ `viewDidLoad ` 只有在第一次加载视图的时候才会调用
+
