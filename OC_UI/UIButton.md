@@ -60,10 +60,6 @@ btn.titleLabel.font = [UIFont systemFontOfSize: 18];
 btn.titleLabel.backgroundColor = [UIColor redColor]; 
 ```
 
-![image-20260405154423050](/Users/lose_sea/Library/Application Support/typora-user-images/image-20260405154423050.png)
-
-
-
 ### 为按钮添加事件
 
 
