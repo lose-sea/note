@@ -143,7 +143,7 @@ self.window.rootViewController = vc;
 
 
 
-视图分为: 
+视图控制器分为: 
 
 1. 显示前
 2. 正在处于显示状态
