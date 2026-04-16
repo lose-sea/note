@@ -162,3 +162,16 @@ appearance.backgroundColor = [UICOlor redColor];
 >  `standard`：普通状态
 >   `scrollEdge`：滚动到顶部（大标题常见）
 >   `compact`：高度变小（横屏 / 特殊场景）
+
+目的是为了在所有状态下看起来一致
+
+
+| 少了哪个   | 结果           |
+| ---------- | -------------- |
+| scrollEdge | 顶部变透明     |
+| standard   | 滚动后样式错乱 |
+| compact    | 横屏样式异常   |
+
+## 设置工具栏的外观
+
+工具栏
