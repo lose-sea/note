@@ -1,6 +1,17 @@
-# Appearance 外观管理 
+# Appearance 外观管理
 
-在iOS13+ , Appearance 的优先级通常更高, 
+在iOS13+之前, 外观一般是通过直接设置属性来设置的,在iOS13 之后, 通过 Appearance 来统一配置,  并且Appearance 的优先级通常更高. 
+
+
+
+它不只是颜色，还可以设置：
+
++ 背景
++ 透明度
++ 阴影
++ 标题样式
++ 按钮样式
++ 滚动状态下的样子
 
 
 
@@ -56,9 +67,9 @@ nav.navigationBar.scrollEdgeAppearance = appearance;
 在iOS13 之前
 
 ```objc
-    // 设置不透明
-    // 默认是 YES, 透明
-    self.navigationController.navigationBar.translucent = NO;
+// 设置不透明
+// 默认是 YES, 透明
+self.navigationController.navigationBar.translucent = NO;
 ```
 
 它控制的是 导航栏是否参与系统的半透明/模糊渲染, 默认是YES, 也就是透明的, 要改变导行栏的颜色, 就必须要设置为 NO; 否则不会生效 
@@ -80,8 +91,6 @@ nav.navigationBar.scrollEdgeAppearance = appearance;
 > 不直接影响 layout (布局分布)
 >
 > 可分别控制不同状态（standard / scrollEdge）
-
-
 
 例如: 
 
@@ -174,4 +183,43 @@ appearance.backgroundColor = [UICOlor redColor];
 
 ## 设置工具栏的外观
 
-工具栏
+工具栏  
+
+创建`UIToolbarApperance` 对象
+
+```objc
+UIToolbarAppearance* toolAppearance = [[UIToolbarAppearance alloc] init];
+```
+
+设置不透明
+
+```objc
+[toolAppearance configureWithOpaqueBackground]; 
+```
+
+设置背景颜色 
+
+```objc
+toolAppearance.backgroundColor = [UIColor yellowColor]; 
+```
+
+应用
+
+```objc
+UIToolbar* toolBar = self.navigationController.toolbar;
+toolBar.standardAppearance = toolAppearance;
+toolBar.scrollEdgeAppearance = toolAppearance;
+toolBar.compactAppearance = toolAppearance;
+```
+
+
+
+## Appearance 应用概述
+
+不仅仅是`navigationBar`和 `toolBar`, UINavigationBar,UIToolbar,UIBarButtonItem,UIButton,UILabel（部分属性),UISwitch,UISlider,UITableView / UITableViewCell（部分） 都可以通过Appearance 来设置来属性
+
+UI Appearance 实际是一个 `peosy(代理对象) + runtime动态转发`, 
+
+它不会立即修改对象, 而是记录你设置的样式, 在控件创建的时候自动应用,或者在layout / trait change 时更新
+
+可以理解为提前设置一套规则, 在需要使用的时候直接调用, 统一设置外观
