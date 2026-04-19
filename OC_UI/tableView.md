@@ -102,7 +102,7 @@ Delegate (代理) 决定的是 “怎么交互”
 
 
 
-## Cell 的创建及复用机制
+## Cell 的创建及复用
 
 `- (UITableViewCell*) tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath ` 方法有两种写法
 
@@ -170,7 +170,7 @@ Delegate (代理) 决定的是 “怎么交互”
 
 
 
-### Cell的复用机制
+### Cell的复用
 
 在 iOS 里，UITableView 的 **cell 复用机制（reuse mechanism）** 是它性能高的核心原因之一。可以把它理解成一个“对象池”。 
 
@@ -183,10 +183,10 @@ Delegate (代理) 决定的是 “怎么交互”
 
 如果一个列表有 1000 行，不可能真的创建 1000 个 cell。
 
- 实际上只会创建：
-
-屏幕可见的 cell（比如 10 个）
-
-以及少量缓存（比如 2~3 个）
+ 实际上只会创建：屏幕可见的 cell（比如 10 个）,以及少量缓存（比如 2~3 个）
 
 其余的都靠 **复用（reuse）**。
+
+> 当有cell滑出屏幕时，会将其放入到一个set中（相当于一个重用池），当UITableView要求返回cell的时候，datasource会先在集合中查找是否有闲置的cell，若有则会将数据配置到这个cell中，并将cell返回给UITabelView。 这大大减少了内存的开销。
+> 因为我在滚动的过程中会出现一个将cell滚出屏幕外的时候，这时候如果我们一直创建cell的话，如果cell太多了就会出现一个内存开销过多的一个问题。所以我们要采用这个复用的方式来提高内存利用率。 
+
