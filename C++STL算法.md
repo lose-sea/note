@@ -11,8 +11,35 @@
 
 
 
+
+
 # set.contains() 
 
 判断集合中是否包含指定元素, 
 
 时间复杂度: **O(log n)**
+
+
+
+
+
+#   `std::accumulate`
+
+求和
+
+```
+#include <numeric>  // 必须包含这个头文件
+
+vector<int> vec = {1, 2, 3, 4, 5};
+
+// 基本用法
+int sum = accumulate(vec.begin(), vec.end(), 0);
+
+// 对于 long long 类型
+vector<long long> vec2 = {1, 2, 3, 4, 5};
+long long sum2 = accumulate(vec2.begin(), vec2.end(), 0LL);
+
+// 对于 double 类型
+vector<double> vec3 = {1.1, 2.2, 3.3};
+double sum3 = accumulate(vec3.begin(), vec3.end(), 0.0);
+```
