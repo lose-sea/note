@@ -1,108 +1,4 @@
-# tableView
-
-tableView 的本质是 **一个高性能的滚动列表容器**  
-
-
-
-必须要实现两个协议: 
-
-```objc
-<UITableViewDataSource> 
-<UITableViewDelegate>
-```
-
-
-
-DataSource (数据源) 表示的是 “显示什么” 
-
-必须实现两个协议 (@required)
-
-`- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section;` 决定了每组有多少行的内容  
-
-```objc
-// 设置每个section 有多少行
-- (NSInteger) tableView: (UITableView*)tableView numberOFRowsInsection: (NSInteger) section {
-    return 10; 
-}
-```
-
-
-
-`- (UITableViewCell*) tableView: (UITableView*) tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath; ` 设置单元格内容 
-
-```objc
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"CellID" 
-                                                            forIndexPath:indexPath];
-    cell.textLabel.text = self.dataArray[indexPath.row];
-    return cell;
-}
-```
-
-> Cell 的详细内容, 下文会详细讲解
-
-
-
-可选实现: 
-
-```objc
-// 设置组数
-// 默认是 1 
-- (NSInteger) numberOfSectionsInTableView:(UITableView *)tableView {
-    return 2;
-} 
-
-// 设置行高
-- (CGFloat) tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return 100;
-}
-
-// 头标题
-- (NSString*) tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    return @"title of head";
-}
-
-// 尾标题
-- (NSString*) tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    return @"title of tail";
-} 
-
-// 获取头部高度
-- (CGFloat) tableView: (UITableView*) tableView heightForHeaderInSection:(NSInteger)section {
-    return 100;
-}
-
-// 尾部高度
-- (CGFloat) tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section {
-    return 200;
-}
-```
-
-
-
-DataSource = 提供数据 + 创建 Cell
-
-
-
-Delegate (代理) 决定的是 “怎么交互” 
-
-常用的方法有: 
-
-```objc
-// 行被点击的时候调用的方法
-- (void) tableView:(UITableView *)tableView didSelectRowAtIndexPath:(nonnull NSIndexPath *)indexPath {
-    NSLog(@"选中了 %ld %ld", indexPath.section, indexPath.row); 
-} 
-
-// 取消选中(切换选中时调用)
-- (void) tableView:(UITableView *)tableView didDeselectRowAtIndexPath:(nonnull NSIndexPath *)indexPath {
-    NSLog(@"取消选中单元格: %ld %ld", indexPath.section, indexPath.row);
-} 
-```
-
-
-
-## Cell 的配置及相关操作
+## UITableViewCell的创建及复用机制
 
 `- (UITableViewCell*) tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath ` 方法有两种写法
 
@@ -173,6 +69,7 @@ Delegate (代理) 决定的是 “怎么交互”
 这种写法不能设置副标题,而老式写法可以通过创建的方法设置副标题
 
 ```objc
+
 ```
 
 
