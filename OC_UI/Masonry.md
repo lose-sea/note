@@ -196,3 +196,21 @@ make.top.equalTo(viewA.mas_bottom).offset(12);
 // 对齐 safeArea
 make.top.equalTo(self.view.mas_safeAreaLayoutGuide);
 ```
+
+
+
+
+
+## Masonry 布局获取 Frame 的正确时机
+
+**在 `viewDidLoad` 中使用 Masonry 设置约束后，立即获取 `frame`/`bounds` 得到的是 `{0,0,0,0}`**
+
+### 原因
+
++ Masonry 只是**设置了约束规则**，并没有立即执行布局
++ 系统会在**下一个 RunLoop** 或 `viewDidLayoutSubviews` 时才真正计算 frame
++ `viewDidLoad` 执行时，视图还没有被添加到窗口，布局尚未计算
+
+### 解决方案使用 `layoutIfNeeded` 强制立即布局（推荐）
+
+#### 使用 `layoutIfNeeded` 强制立即布局
