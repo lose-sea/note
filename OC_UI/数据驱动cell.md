@@ -17,7 +17,7 @@
 
 **关系总结**：MVC 搭建了房子的框架，而数据驱动 Cell 则规定了如何高效、整洁地铺设其中的地板（TableView）。
 
-## 生活类比：电子相框 vs. 记事本
+## 生活类比：
 
 想象一个数码电子相框：
 
@@ -220,7 +220,7 @@ objectivec
 }
 ```
 
-
+![CleanShot 2026-05-14 at 21.10.30](/Users/lose_sea/Desktop/pintures/CleanShot 2026-05-14 at 21.10.30.gif)
 
 **核心闭环**：**用户操作** → **更新 Model** → **刷新 UI** → **UI 从新 Model 重新渲染**。
 
