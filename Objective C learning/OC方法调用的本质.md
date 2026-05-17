@@ -96,6 +96,8 @@ SEL sel = @selector(test);
 
 ------
 
+
+
 # IMP 是什么？
 
 ```
@@ -236,7 +238,7 @@ cache → method list
 
 ------
 
-# 八、Step 6：还找不到 → runtime 动态流程（你刚刚那张图）
+# 八、Step 6：还找不到 → runtime 动态流程
 
 ------
 
@@ -291,7 +293,7 @@ unrecognized selector sent to instance
 imp(obj, SEL);
 ```
 
-👉 IMP 本质是函数指针：
+ IMP 本质是函数指针：
 
 ```
 void run(id self, SEL _cmd) {
