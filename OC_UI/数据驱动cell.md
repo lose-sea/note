@@ -203,7 +203,7 @@ objectivec
 // StudentCell.h 中添加代理协议
 @protocol StudentCellDelegate <NSObject>
 - (void)studentCellDidTapPassButton:(StudentCell *)cell; // 假设有一个“修改及格状态”的按钮
-@end
+@end 
 
 // StudentListViewController.m 中实现代理
 - (void)studentCellDidTapPassButton:(StudentCell *)cell {
