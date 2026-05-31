@@ -101,3 +101,87 @@
 这里展示跳转界面展示搜索结果
 
 ![CleanShot 2026-05-30 at 22.55.10](/Users/lose_sea/Desktop/pintures/CleanShot 2026-05-30 at 22.55.10.gif)
+
+设置UISearchController 的相关属性 
+
+```objc
+searchController.obscuresBackgroundDuringPresentation = NO; // 搜索时是否模糊背景（默认YES）
+    searchController.hidesNavigationBarDuringPresentation = NO; // 搜索时是否隐藏导航栏（默认YES）
+    searchController.searchBar.placeholder = @"搜索";            // 占位文字
+//    searchController.searchBar.delegate = self;                 // 可选：监听搜索栏事件
+    searchController.searchBar.returnKeyType = UIReturnKeySearch;
+
+// 设置键盘样式
+    self.searchController.searchBar.keyboardType = UIKeyboardTypeDefault;
+```
+
+然后设置tableView的相关属性, 用来显示搜索结果
+
+```objc
+- (void) setupTableView {
+    self.tableView = [[UITableView alloc] initWithFrame:self.view.bounds];
+    self.tableView.dataSource = self;
+    [self.tableView registerClass:[UITableViewCell class] forCellReuseIdentifier:@"cell"];
+    [self.view addSubview:self.tableView];
+}
+```
+
+
+
+这里我们设置的数组filteredData是根据搜索结果实时更新的, 所以我们实现协议方法返回cell的个数就返回数组filteredData.count
+
+另外在cell的注册和设置时, 我们就显示当前的搜索结果, 如果没有输入显示所有结果
+
+```objc
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return self.filteredData.count; // 始终用 filteredData
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView
+         cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"cell"
+                                                            forIndexPath:indexPath];
+    cell.textLabel.text = self.filteredData[indexPath.row];
+    return cell;
+}
+```
+
+另外, 还有一个更重要的部分,就是让数组 filteredData 根据搜索框中的内容实时更新, 这里就需要用到上面提到的 UISearchController 的协议方法, `- (void)updateSearchResultsForSearchController:(UISearchController *)searchController`,在搜索框中删除或输入内容,就筛选结果对 filteredData 进行更新
+
+代码如下: 
+
+```objc
+// 用户输入时自动调用
+- (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
+    NSLog(@"搜索框结果更新");
+    NSString *text = searchController.searchBar.text;
+    if (text.length == 0) {
+        // 没有输入，显示全部
+        self.filteredData = self.allData;
+    } else {
+        // 有输入，过滤数据
+        NSPredicate *predicate = [NSPredicate predicateWithFormat:@"SELF CONTAINS[cd] %@", text];
+        self.filteredData = [self.allData filteredArrayUsingPredicate:predicate];
+    }
+    // 刷新列表
+    [self.tableView reloadData];
+}
+```
+
+在上面的方法中, 用到了`NSPredicate *predicate = [NSPredicate predicateWithFormat:@"SELF CONTAINS[cd] %@", text];`, 这里使用了谓词, 由于笔者没有学习过谓词, 这里也不过多讲解, 就解释一下这段代码的意义
+
+这行代码创建了一个 `NSPredicate`（谓词）对象，用于**测试一个字符串是否包含另一个子串**（不区分大小写和变音符号）。它通常与 `NSArray` 的 `filteredArrayUsingPredicate:` 方法配合使用，实现数组的模糊搜索过滤。
+
+用这行代码就实现了根据搜索框中的输入对结果进行筛选
+
+## 搜索栏的事件监听
+
+`UISearchBarDelegate` 协议包含多个可选方法，用于监听 `UISearchBar` 的各种交互事件。
+
+所以如果需要监听搜索栏的事件， 就需要遵守`UISearchBarDelegate` 协议, 还需要需要设置代理
+
+```objc
+searchController.searchBar.delegate = self;
+```
+
+在`UISearchBarDelegate` 协议里,
