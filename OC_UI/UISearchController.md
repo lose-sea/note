@@ -85,7 +85,7 @@
  self.searchController = [[UISearchController alloc] initWithSearchResultsController:nil];
 ```
 
-参数 nitWithSearchResultsController 表示显示结果的页面,传 nil 表示在当前界面显示搜索结果
+参数 initWithSearchResultsController 表示显示结果的页面,传 nil 表示在当前界面显示搜索结果
 
 注意,如果要跳转界面进行结果展示, 需要要将searchResultsUpdater 代理对象设置为要跳转的视图控制器,否则无法观察到搜索结果
 
