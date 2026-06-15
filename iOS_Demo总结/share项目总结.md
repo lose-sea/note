@@ -1,4 +1,4 @@
-# share项目总结
+# share项目难点梳理
 
 ## 登录与注册界面
 
@@ -474,10 +474,8 @@ CGRect keyboardFrame = [notification.userInfo[UIKeyboardFrameEndUserInfoKey] CGR
     self.title = @"首页"; 
     // Do any additional setup after loading the view.
     [self initData];
-    [self setHomepageView];
-    
+    [self setHomepageView];   
 }
-
 - (void) setHomepageView {
     self.homepageView = [[HomepageView alloc] init];
     [self.view addSubview: self.homepageView];
@@ -569,5 +567,303 @@ CGRect keyboardFrame = [notification.userInfo[UIKeyboardFrameEndUserInfoKey] CGR
 [[NSRunLoop currentRunLoop] addTimer:self.timer forMode: NSRunLoopCommonModes];
 ```
 
+再说文章点赞, 前面有说过, 在cell中设置了article类型的属性, 所以, 在实现点赞功能时候, 可以直接操作cell的article 属性中的点赞数 
 
+这里在cell 中设置了点赞按钮, 在点击点赞按钮的时候, 就改变文章的点赞状态, 在根据状态来调整点赞按钮的图标样式
+
+另外,在点击cell跳转文章详情页的时候, 可以通过正向传值的方式将article 直接传给详情页的视图控制器, 在返回列表页的时候,可以采取代理传值的方式, 在跳转之前, 可以设置详情页的代理为列表页的视图控制器 
+
+```objc
+- (void) tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath: indexPath animated: YES];
+    if (indexPath.row == 0) {
+        return; 
+    }
+    self.indexPath = indexPath;
+    ArticlePageController* vc = [[ArticlePageController alloc] init];
+    CustomCell* cell = [tableView cellForRowAtIndexPath: indexPath];
+    cell.article.viewCount++;
+    vc.title = cell.article.name;
+    vc.article = self.homeModel.articles[indexPath.row];
+    vc.delegate = self;
+    [self.navigationController pushViewController: vc animated: YES];
+}
+```
+
+定义协议, 在列表页要实现协议方法
+
+```objc
+- (void) refreshArticle:(article *)article {
+    self.homeModel.articles[self.indexPath.row] = article;
+    [self.homepageView.tableView reloadData]; 
+}
+```
+
+在从详情页返回的时候, 列表页调用协议方法
+
+```objc
+- (void) setUpNavigation {
+//    self.navigationController.navigationBar.translucent =  NO; 
+    UIBarButtonItem* back = [[UIBarButtonItem alloc] initWithTitle: @"back" style: UIBarButtonItemStylePlain target: self  action: @selector(pressBack)];
+    self.navigationItem.leftBarButtonItem = back;
+}
+
+- (void)pressBack {
+    if ([self.delegate respondsToSelector:@selector(refreshArticle:)]) {
+        [self.delegate refreshArticle: self.article];
+    }
+    [self.navigationController popViewControllerAnimated: YES];
+}
+```
+
+这样就实现了列表页和详情页的点赞和收藏同步 
+
+## 搜索页
+
+在搜索页实现标签的选择, 这里使用了UICollectionView 加自定义cell 来实现, 但我们点击标签cell的时候, cell就变为蓝色, 再次点击, 取消选择, 变回原来的颜色 
+
+UICollectionView 没有和 UITableView  一样直接设置header的view 的方法, 但是可以通过遵守协议来为每一部分设置headerView, 这里需要遵守协议 `UICollectionViewDelegateFlowLayout`,  然后通过协议方法 `\- (UICollectionReusableView *)collectionView:(UICollectionView *)collectionView viewForSupplementaryElementOfKind:(NSString *)kind atIndexPath:(NSIndexPath *)indexPath` 来设置
+
+```objc
+- (UICollectionReusableView *)collectionView:(UICollectionView *)collectionView viewForSupplementaryElementOfKind:(NSString *)kind atIndexPath:(NSIndexPath *)indexPath {
+    if ([kind isEqualToString: UICollectionElementKindSectionHeader]) {
+        NSLog(@"%@", self.searchModel.tags);
+        UICollectionReusableView* header = [collectionView dequeueReusableSupplementaryViewOfKind: kind withReuseIdentifier: @"SectionHeader" forIndexPath: indexPath];
+        // 清空旧内容
+        for (UIView *subview in header.subviews) {
+            [subview removeFromSuperview];
+        }
+        UIImage* image = [UIImage systemImageNamed: @"tag.fill"];
+        UIImageView* iView = [[UIImageView alloc] initWithImage: image];
+        [header addSubview: iView];
+        [iView mas_makeConstraints:^(MASConstraintMaker *make) {
+//            make.top.mas_equalTo(header).offset(5);
+            make.centerY.mas_equalTo(header);
+            make.left.mas_equalTo(header).offset(5);
+            make.height.mas_equalTo(30);
+            make.width.mas_equalTo(30);
+        }];
+        iView.backgroundColor = [UIColor systemCyanColor];
+        
+        UILabel* label = [[UILabel alloc] init];
+        [header addSubview: label];
+        label.text = self.searchModel.tags[indexPath.section];
+        [label mas_makeConstraints:^(MASConstraintMaker *make) {
+//            make.top.mas_equalTo(header).offset(5);
+            make.centerY.mas_equalTo(header);
+            make.left.mas_equalTo(iView.mas_right);
+            make.width.mas_equalTo(60);
+            make.height.mas_equalTo(30);
+        }];
+        label.backgroundColor = [UIColor systemCyanColor];
+        label.textColor = [UIColor blackColor];
+        
+        UIView* line = [[UIView alloc] init];
+        line.backgroundColor = [UIColor systemCyanColor];
+        [header addSubview: line];
+        [line mas_makeConstraints:^(MASConstraintMaker *make) {
+            make.top.mas_equalTo(label.mas_bottom);
+            make.left.mas_equalTo(iView);
+            make.width.mas_equalTo(400);
+            make.height.mas_equalTo(3);
+        }];
+        return header;
+    }
+    return nil; 
+}
+```
+
+搜索功能的实现这里采用了 UISearchController, 这个之前的一篇博客有有专门介绍,  [UI学习:UISearchController基础了解和应用](https://blog.csdn.net/for_ever_love__/article/details/161553217?spm=1011.2124.3001.6209) 
+
+## 文章分类页
+
+在文章分类界面, 需要根据 UISegmentedControll 的不同标签来显示不同的tableView,还要通过左右滑动tableView 来切换segmentedControl 的标签, 这里可以添加一个 UIScrollView ,然后在scrollView 添加3个tableView , 然后通过scrollView的代理实现滑动tableView来切换segmentedControl 的标签 , 通过scrollView的偏移量来计算对应的segmentedControl 的标签的索引
+
+```objc
+- (NSInteger) currentpage {
+    NSInteger page = (self.articleCategoryView.scrollView.contentOffset.x + 0.5 * self.articleCategoryView.scrollView.bounds.size.width) / self.articleCategoryView.scrollView.bounds.size.width;
+    return page;
+}
+
+- (void) scrollViewDidScroll:(UIScrollView *)scrollView {
+    NSInteger page = [self currentpage];
+    self.articleCategoryView.segmentedControl.selectedSegmentIndex = page;
+}
+```
+
+
+
+要通过变换segmentedControl 来实现UITableView, 通过为segmentedControl 添加事件, 在segmentedControl 的标签切换时, 根据标签的索引计算scrollView的偏移量
+
+```objc
+[self.articleCategoryView.segmentedControl addTarget: self action: @selector(segmentedControlChange) forControlEvents: UIControlEventValueChanged];
+```
+
+
+
+```objc
+- (void) segmentedControlChange {
+    NSInteger page = self.articleCategoryView.segmentedControl.selectedSegmentIndex;
+    self.articleCategoryView.scrollView.contentOffset = CGPointMake(self.articleCategoryView.scrollView.bounds.size.width * page,  0);
+}
+```
+
+点赞和收藏与文章详情页的逻辑和首页一致
+
+## 个人信息界面
+
+在个人信息界面,难点主要是私信功能,笔者这实现这一部分的时候遇到很多困难
+
+在这一部分功能实现中, 我们采用 UITableView 来显示发送的消息
+
+首先是双方轮流发消息, 这个功能可以给当前的视图控制器添加一个BOOL类型的属性来记录当前发消息的对象, 在每次发消息之后都去改变这个属性,这样就实现了轮流发消息
+
+我们创建一个NSMutableArray 来存储发送消息, 在屏幕底部设置一个输入框和一个发送按钮, 当用户编辑完成后,点击发送按钮, 就会把输入框中的字符串加入到消息数组中,然后重新加载tableView, 这样就可以把发送的消息展示在屏幕上
+
+还有就是要保证键盘弹出的时候上移动界面 ,要保证键盘不会遮住消息
+
+这个功能的实现我这里通过调用tableView的系统方法` [self.talkView.tableView scrollToRowAtIndexPath:lastPath atScrollPosition:UITableViewScrollPositionBottom animated:YES];`设置了让 tableViwe的最后一个 cell 保持滚到到最底部
+
+```objc
+- (void)scrollToBottom {
+    NSInteger rows = [self.talkView.tableView numberOfRowsInSection:0];
+    if (rows == 0) return;
+    NSIndexPath *lastPath = [NSIndexPath indexPathForRow:rows - 1 inSection:0];
+    [self.talkView.tableView scrollToRowAtIndexPath:lastPath atScrollPosition:UITableViewScrollPositionBottom animated:YES];
+}
+```
+
+
+
+```objc
+//
+//  TalkController.m
+//  Share
+//
+//  Created by lose_sea on 2026/6/3.
+//
+
+#import "TalkController.h"
+
+@interface TalkController ()
+
+@end
+
+@implementation TalkController
+//  在载入了聊天界面的时候隐藏tabBar
+- (void) viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    self.tabBarController.tabBar.hidden = YES;
+}
+
+- (void) viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    self.tabBarController.tabBar.hidden = NO; 
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    [self setUpData]; 
+    // Do any additional setup after loading the view.
+    
+    // 注册键盘通知
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(keyboardWillShow:)
+                                                 name:UIKeyboardWillShowNotification
+                                               object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(keyboardWillHide:)
+                                                    name:UIKeyboardWillHideNotification
+                                                   object:nil];
+    
+    
+    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dismissKeyboard)];
+    // 不取消其他触摸事件，让 cell 的点击仍然有效
+    tap.cancelsTouchesInView = NO;
+    [self.talkView.tableView addGestureRecognizer:tap];
+}
+
+- (void)dismissKeyboard {
+    [self.view endEditing:YES];  // 收起键盘
+}
+
+- (void)keyboardWillShow:(NSNotification *)notification {
+    // 获取键盘高度
+    NSDictionary *userInfo = notification.userInfo;
+    CGRect keyboardFrame = [userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+    CGFloat keyboardHeight = keyboardFrame.size.height;
+    
+    self.talkView.frame = CGRectMake(0, -keyboardHeight, self.view.frame.size.width, self.view.frame.size.height);
+    
+}
+
+- (void)keyboardWillHide:(NSNotification *)notification {
+    
+    self.talkView.frame = CGRectMake(0, 0, self.view.bounds.size.width, self.view.bounds.size.height);
+}
+- (void) setUpData {
+    self.talkModel = [[TalkModel alloc] init];
+    self.talkView = [[TalkView alloc] init];
+    self.isMyself = NO;
+    [self.view addSubview: self.talkView];
+    [self.talkView mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.edges.mas_equalTo(self.view);
+    }];
+    
+    self.user = [[Follower alloc] initWithUser: [[UserModel alloc] init]];
+    
+    self.talkView.tableView.delegate = self;
+    self.talkView.tableView.dataSource = self;
+    
+    [self.talkView.sendButton addTarget: self action: @selector(pressSend) forControlEvents: UIControlEventTouchUpInside];
+}
+
+// 使tableView始终滚动到最底部
+- (void)scrollToBottom {
+    NSInteger rows = [self.talkView.tableView numberOfRowsInSection:0];
+    if (rows == 0) return;
+    NSIndexPath *lastPath = [NSIndexPath indexPathForRow:rows - 1 inSection:0];
+    [self.talkView.tableView scrollToRowAtIndexPath:lastPath atScrollPosition:UITableViewScrollPositionBottom animated:YES];
+}
+
+- (void) pressSend {
+    NSLog(@"点击了发送");
+    if (self.talkView.textView.text.length > 0) {
+        [self.talkModel.messages addObject: self.talkView.textView.text];
+
+        [self.talkView.tableView reloadData];
+        [self scrollToBottom];  // 滚动到底部
+        self.talkView.textView.text = nil;
+    }
+}
+
+- (NSInteger) tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return self.talkModel.messages.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath  {
+    TalkCell* cell = [tableView dequeueReusableCellWithIdentifier: @"TalkCellID" forIndexPath: indexPath];
+    if (indexPath.row % 2 == 0) {
+        self.isMyself = NO;
+        cell.user = self.other;
+        [cell configWithFollower: self.other Message: self.talkModel.messages[indexPath.row] isMyself: NO];
+    } else {
+        self.isMyself = YES;
+        cell.user = self.user;
+        [cell configWithFollower: self.user Message: self.talkModel.messages[indexPath.row] isMyself: YES];
+    }
+    return cell;
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    [self.view endEditing: YES]; 
+}
+
+- (void) tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath: indexPath animated: YES];
+    [self.talkView endEditing: YES]; 
+}
+
+@end
+```
 
