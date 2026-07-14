@@ -50,12 +50,6 @@ Git LFS 官方 pkg 安装包，会把程序直接放到**系统全局目录**：
 
 ### 核心差异对比表
 
-表格
-
-
-
-
-
 
 
 | 安装方式       | 真实文件存放位置                                             | 管理方式                           |
@@ -71,16 +65,6 @@ Git LFS 官方 pkg 安装包，会把程序直接放到**系统全局目录**：
 不管 brew 还是 pkg，最终 `git-lfs` 可执行文件都会出现在 `/usr/local/bin` 或 `/opt/homebrew/bin`，终端直接输入 `git lfs` 都能运行，**但这只是软链接，真实本体存放位置完全不同**。
 
 ### 验证命令（查看真实路径）
-
-bash
-
-
-
-运行
-
-
-
-
 
 ```
 # 查看git-lfs真实存放位置
@@ -115,28 +99,18 @@ ls -l $(which git-lfs)
 
 + `/Applications/` 下的 `.app` 图形化应用
 
-+ ```
-  ~/Library
-  ```
-
-   关联配置
-
++ ~/Library 关联配置
+  
   
 
-  brew 安装的命令行工具（git-lfs、git、node 等）本体在 
+  brew 安装的命令行工具（git-lfs、git、node 等）本体在
 
-  ```
   /opt/homebrew/Cellar
-  ```
 
-  （M 芯片）、
-
-  ```
-  /usr/local/Cellar
-  ```
+  （M 芯片）、/usr/local/Cellar
 
   ，
-
+  
   AppCleaner 默认扫描不到 Cellar 目录
 
   ，只会漏掉绝大部分文件。
@@ -157,14 +131,6 @@ ls -l $(which git-lfs)
 
 ### 1. 普通卸载（保留缓存，可重装）
 
-bash
-
-
-
-运行
-
-
-
 
 
 ```
@@ -173,14 +139,6 @@ brew uninstall git-lfs
 ```
 
 ### 2. 彻底卸载（连带缓存、配置全部清理）
-
-bash
-
-
-
-运行
-
-
 
 
 
@@ -191,14 +149,6 @@ brew uninstall --zap git-lfs
 `--zap` 参数会同时删除该软件所有本地缓存、偏好、残留配置，等效干净卸载。
 
 ### 3. 清理全局无用依赖（卸载后执行）
-
-bash
-
-
-
-运行
-
-
 
 
 
@@ -212,14 +162,6 @@ brew autoremove
 
 执行 brew 自检，自动修复文件缺失、软链接异常：
 
-bash
-
-
-
-运行
-
-
-
 
 
 ```
@@ -227,14 +169,6 @@ brew doctor
 ```
 
 根据终端提示执行修复命令，或重装对应软件：
-
-bash
-
-
-
-运行
-
-
 
 
 
