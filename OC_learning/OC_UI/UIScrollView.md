@@ -26,6 +26,10 @@ iView.contentMode = UIViewContentModeScaleToFill;
 
 
 
+`scrollViewDidScroll` 这个方法**任何滚动**(包括代码触发的滚动)都会调用,不区分是用户手指拖动的,还是程序调用的。 
+
+`scrollViewWillBeginDragging`,这个方法**只有用户用手指拖动**列表时才会触发
+
 
 
 #### 
