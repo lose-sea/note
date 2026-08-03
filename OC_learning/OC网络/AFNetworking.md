@@ -192,8 +192,73 @@ NSDictionary* parameters = @{@"key": @"3557d02150d248e6b0735224252907", @"q": @"
 + **`error`**：包含失败原因的 `NSError` 对象，可能是网络超时、证书问题、服务器返回 4xx/5xx 状态码或 JSON 解析失败等。
 + 当前代码只打印 `@"请求失败"`，未输出具体错误信息。**建议改为** `NSLog(@"请求失败: %@", error);` 以便调试。
 
+# AFNetworking 中的GET请求 和 POST请求
 
+无论是 GET 还是 POST 请求，都可以通过 `AFHTTPSessionManager` 的相应方法来发起。它们的方法签名非常相似，保持了 API 的一致性。
 
-### 小结
+#### GET 请求
 
-这里笔者简单的介绍了有关AFN这个第三方库的使用，以及使用一个单例来封装网络请求，从而提高代码的内聚性，便于后期的代码维护。
+通常用于从服务器**获取**数据。
+
+```objc
+[manager GET:URLString
+   parameters:parameters
+      headers:headers
+     progress:progress
+      success:successBlock
+      failure:failureBlock];
+```
+
+#### POST 请求
+
+通常用于向服务器**提交**数据。
+
+```objc
+[manager POST:URLString
+    parameters:parameters
+       headers:headers
+      progress:progress
+       success:successBlock
+       failure:failureBlock];
+```
+
+可以看到，两者的调用方式几乎一模一样。 
+
+下面是一个POST请求的例子
+
+```objc
+- (void) createAFNetworkingPOST {
+    AFHTTPSessionManager* manager = [AFHTTPSessionManager manager];
+    manager.requestSerializer.timeoutInterval = 15;
+    
+    NSDictionary* parameters = @{@"title": @"exersice",
+                                 @"body": @"hello xinyan",
+                                 @"userId": @"1"};
+    
+    [manager POST: @"https://jsonplaceholder.typicode.com/posts"
+       parameters: parameters
+          headers: nil
+         progress: nil
+          success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+    
+            NSLog(@"POST 请求成功, 返回数据: %@", responseObject);
+
+            NSLog(@"任务是 %@", task);
+        
+            // 你可以在这里尝试取出服务器返回的 id
+            if ([responseObject isKindOfClass:[NSDictionary class]]) {
+                NSNumber *newId = responseObject[@"id"];
+                NSLog(@"创建资源的 ID 是: %@", newId);
+            }
+            
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            NSLog(@"请求失败");
+        }];
+}
+```
+
+最终打印: 
+
+![image-20260803201249409](/Users/lose_sea/Desktop/pintures/image-20260803201249409.png)
+
+GET 和 POST 的区别主要是语义和参数的传递方式, GET请求 的参数是附加在 URL 后面, 而POST请求的参数是放在HTTP请求的Body中的, 
