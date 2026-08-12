@@ -1,6 +1,6 @@
 ## Python 字符串（String）所有方法汇总
 
-Python 字符串是**不可变序列**，所有方法都**返回新字符串**，不修改原字符串。我按功能分类整理如下：
+Python 字符串是**不可变序列**，所有方法都**返回新字符串**，不修改原字符串。按功能分类整理如下：
 
 ------
 
@@ -15,9 +15,9 @@ Python 字符串是**不可变序列**，所有方法都**返回新字符串**�
 | `swapcase()`   | 大小写互换                               | `"Hello".swapcase()` → `"hELLO"`          |
 | `casefold()`   | 更强大的小写转换（用于不区分大小写比较） | `"ß".casefold()` → `"ss"`                 |
 
-python
 
-```
+
+```python
 # 示例
 text = "hello world"
 print(text.capitalize())  # "Hello world"
@@ -35,6 +35,8 @@ print("ß".casefold())     # "ss" (用于比较时更准确)
 
 ## 二、查找与统计（7个方法）
 
+
+
 | 方法                             | 说明                                    | 示例                                |
 | :------------------------------- | :-------------------------------------- | :---------------------------------- |
 | `find(sub, start, end)`          | 查找子串第一次出现的位置，找不到返回 -1 | `"hello".find("l")` → `2`           |
@@ -45,9 +47,9 @@ print("ß".casefold())     # "ss" (用于比较时更准确)
 | `startswith(prefix, start, end)` | 是否以指定前缀开头                      | `"hello".startswith("he")` → `True` |
 | `endswith(suffix, start, end)`   | 是否以指定后缀结尾                      | `"hello".endswith("lo")` → `True`   |
 
-python
 
-```
+
+```python
 # 示例
 text = "hello world"
 print(text.find("l"))        # 2
@@ -68,6 +70,8 @@ print(text.find("l", 3, 7))  # 从索引3到7之间查找 → 3
 
 ## 三、判断类型（9个方法）
 
+
+
 | 方法          | 说明                                   | 示例                               |
 | :------------ | :------------------------------------- | :--------------------------------- |
 | `isalpha()`   | 是否全是字母（含中文）                 | `"Hello".isalpha()` → `True`       |
@@ -80,9 +84,9 @@ print(text.find("l", 3, 7))  # 从索引3到7之间查找 → 3
 | `isupper()`   | 是否全是大写                           | `"HELLO".isupper()` → `True`       |
 | `istitle()`   | 是否符合标题格式（每个单词首字母大写） | `"Hello World".istitle()` → `True` |
 
-python
 
-```
+
+```python
 # 示例
 print("Hello123".isalnum())   # True
 print("123".isdigit())        # True
@@ -103,6 +107,8 @@ print("Hello123".isalnum())   # True (字母或数字)
 
 ## 四、填充与对齐（5个方法）
 
+
+
 | 方法                      | 说明                       | 示例                              |
 | :------------------------ | :------------------------- | :-------------------------------- |
 | `center(width, fillchar)` | 居中对齐，用指定字符填充   | `"hi".center(5, "*")` → `"*hi**"` |
@@ -111,9 +117,9 @@ print("Hello123".isalnum())   # True (字母或数字)
 | `zfill(width)`            | 右侧填充0（常用于数字补0） | `"42".zfill(5)` → `"00042"`       |
 | `expandtabs(tabsize)`     | 将制表符替换为空格         | `"a\tb".expandtabs(4)` → `"a b"`  |
 
-python
 
-```
+
+```python
 # 示例
 print("Python".center(10, "*"))   # "**Python**"
 print("Python".ljust(10, "*"))    # "Python****"
@@ -134,9 +140,9 @@ print("-42".zfill(5))             # "-0042"  (负号保留在最前面)
 | `lstrip(chars)` | 去除左侧指定字符                 | `" hello".lstrip()` → `"hello"` |
 | `rstrip(chars)` | 去除右侧指定字符                 | `"hello ".rstrip()` → `"hello"` |
 
-python
 
-```
+
+```python
 # 示例
 text = "  hello world  "
 print(text.strip())    # "hello world"
@@ -164,6 +170,8 @@ print(text.strip("abc"))  # "hello"
 
 ## 六、分割与合并（6个方法）
 
+
+
 | 方法                    | 说明                                   | 示例                                            |
 | :---------------------- | :------------------------------------- | :---------------------------------------------- |
 | `split(sep, maxsplit)`  | 按分隔符分割成列表（默认按空白分割）   | `"a,b,c".split(",")` → `['a','b','c']`          |
@@ -173,9 +181,9 @@ print(text.strip("abc"))  # "hello"
 | `rpartition(sep)`       | 从右向左分割成三部分                   | `"a,b,c".rpartition(",")` → `('a,b', ',', 'c')` |
 | `join(iterable)`        | 用字符串连接可迭代对象（重要！）       | `",".join(['a','b'])` → `"a,b"`                 |
 
-python
 
-```
+
+```python
 # 示例 - split
 text = "apple,banana,orange"
 print(text.split(","))           # ['apple', 'banana', 'orange']
@@ -214,9 +222,9 @@ print("".join(['H', 'e', 'l', 'l', 'o'])) # "Hello"
 | `rstrip()`                 | 见第五部分           | -                                       |
 | `strip()`                  | 见第五部分           | -                                       |
 
-python
 
-```
+
+```python
 # replace
 text = "hello world"
 print(text.replace("l", "x"))       # "hexxo worxd"
@@ -239,16 +247,16 @@ print("hello world".translate(table))   # "hll wrld"
 
 ## 八、格式化（4个方法）
 
-| 方法                      | 说明                           | 示例                                    |
-| :------------------------ | :----------------------------- | :-------------------------------------- |
-| `format(*args, **kwargs)` | 格式化字符串                   | `"{} {}".format("Hello", "World")`      |
-| `f-string`                | Python 3.6+ 格式化（不是方法） | `f"{name}"`                             |
-| `%` 操作符                | 旧式格式化（不是方法）         | `"%s %s" % ("Hello", "World")`          |
-| `format_map(mapping)`     | 用字典格式化                   | `"{name}".format_map({'name':'Alice'})` |
+| 方法                      | 说明               | 示例                                    |
+| :------------------------ | :----------------- | :-------------------------------------- |
+| `format(*args, **kwargs)` | 格式化字符串       | `"{} {}".format("Hello", "World")`      |
+| `f-string`                | Python 3.6+ 格式化 | `f"{name}"`                             |
+| `%` 操作符                | 旧式格式化         | `"%s %s" % ("Hello", "World")`          |
+| `format_map(mapping)`     | 用字典格式化       | `"{name}".format_map({'name':'Alice'})` |
 
-python
 
-```
+
+```python
 # format
 print("{} {}".format("Hello", "World"))  # "Hello World"
 print("{1} {0}".format("World", "Hello")) # "Hello World"
@@ -275,16 +283,16 @@ print(f"{name} is {age}岁")  # "Alice is 18岁"
 | `encode(encoding, errors)` | 字符串编码为字节                     | `"hello".encode()` → `b'hello'` |
 | `decode(encoding, errors)` | 字节解码为字符串（字符串没有此方法） | `b'hello'.decode()` → `"hello"` |
 
-python
 
-```
+
+```python
 # encode
 text = "hello 世界"
 print(text.encode())              # b'hello \xe4\xb8\x96\xe7\x95\x8c'
 print(text.encode('gbk'))         # b'hello \xca\xc0\xbd\xe7'
 
 # 字符串没有 decode 方法
-# "hello".decode()  # ❌ 报错！
+# "hello".decode()  #  报错！
 
 # 使用 bytes 对象解码
 b = b'hello'
@@ -304,7 +312,7 @@ print(b.decode())                 # "hello"
 | `join()`    | 见第六部分                 | -                                           |
 | `sorted()`  | 对字符串字符排序           | `sorted("hello")` → `['e','h','l','l','o']` |
 
-python
+
 
 ```
 # 长度
@@ -327,7 +335,7 @@ print("hello"[::-1])         # "olleh"
 
 ## 十一、完整方法速查表
 
-python
+
 
 ```
 # 按字母排序的所有字符串方法
@@ -388,14 +396,14 @@ str.zfill()            # 补零填充
 
 ### 1. 字符串是不可变的
 
-python
+
 
 ```
-# ❌ 错误：不能直接修改字符串
+#  错误：不能直接修改字符串
 s = "hello"
 # s[0] = "H"  # TypeError
 
-# ✅ 正确：创建新字符串
+#  正确：创建新字符串
 s = "H" + s[1:]  # "Hello"
 ```
 
@@ -403,15 +411,15 @@ s = "H" + s[1:]  # "Hello"
 
 ### 2. 拼接字符串的性能
 
-python
+
 
 ```
-# ❌ 不推荐：大量拼接用 + 会创建很多临时对象
+#  不推荐：大量拼接用 + 会创建很多临时对象
 result = ""
 for s in ["a", "b", "c"]:
     result += s  # 每次创建新字符串
 
-# ✅ 推荐：用 join
+#  推荐：用 join
 result = "".join(["a", "b", "c"])
 ```
 
@@ -419,11 +427,11 @@ result = "".join(["a", "b", "c"])
 
 ### 3. 判断字符串是否为空
 
-python
+
 
 ```
 s = ""
-if not s:          # ✅ 推荐
+if not s:          #  推荐
     print("空字符串")
 if len(s) == 0:    # 也可以用，但不够 Pythonic
     print("空字符串")
@@ -433,7 +441,7 @@ if len(s) == 0:    # 也可以用，但不够 Pythonic
 
 ### 4. 去除换行符
 
-python
+
 
 ```
 line = "hello\n"
@@ -445,7 +453,7 @@ print(line.rstrip("\n"))   # "hello"（只去除换行）
 
 ### 5. 分割文件名和扩展名
 
-python
+
 
 ```
 filename = "image.jpg"

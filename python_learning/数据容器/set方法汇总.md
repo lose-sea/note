@@ -51,7 +51,7 @@ s.add((5, 6))  # ✅ 元组可以
 
 ### 2. `update(iterable)` - 添加多个元素
 
-python
+
 
 ```
 # 用列表更新
@@ -93,10 +93,10 @@ s = {1, 2, 3, 4}
 s.remove(2)
 print(s)  # {1, 3, 4}
 
-# ❌ 删除不存在的元素会报错
+#  删除不存在的元素会报错
 # s.remove(9)  # KeyError: 9
 
-# ✅ 安全做法
+#  安全做法
 if 9 in s:
     s.remove(9)
 ```
@@ -105,14 +105,14 @@ if 9 in s:
 
 ### 2. `discard(x)` - 删除指定元素（不存在不报错）
 
-python
+
 
 ```
 s = {1, 2, 3, 4}
 s.discard(2)
 print(s)  # {1, 3, 4}
 
-# ✅ 删除不存在的元素不会报错
+#  删除不存在的元素不会报错
 s.discard(9)  # 安全，什么都不发生
 print(s)      # {1, 3, 4}
 ```
@@ -121,12 +121,12 @@ print(s)      # {1, 3, 4}
 
 **区别对比：**
 
-python
+
 
 ```
 s = {1, 2, 3}
-s.remove(9)   # ❌ KeyError
-s.discard(9)  # ✅ 不报错，安全
+s.remove(9)   #  KeyError
+s.discard(9)  #  不报错，安全
 
 # 推荐：如果确定元素存在用 remove，不确定用 discard
 ```
@@ -135,7 +135,7 @@ s.discard(9)  # ✅ 不报错，安全
 
 ### 3. `pop()` - 随机删除并返回一个元素
 
-python
+
 
 ```
 s = {1, 2, 3, 4, 5}
@@ -152,7 +152,7 @@ print(s)        # 剩下的元素
 
 ### 4. `clear()` - 清空所有元素
 
-python
+
 
 ```
 s = {1, 2, 3, 4, 5}
@@ -168,7 +168,7 @@ print(s)  # set()
 
 ### 1. `union()` / `|` - 并集
 
-python
+
 
 ```
 s1 = {1, 2, 3}
@@ -192,7 +192,7 @@ print(result)  # {1, 2, 3, 4, 5, 6, 7}
 
 ### 2. `intersection()` / `&` - 交集
 
-python
+
 
 ```
 s1 = {1, 2, 3, 4}
@@ -216,7 +216,7 @@ print(result)  # {4}
 
 ### 3. `difference()` / `-` - 差集
 
-python
+
 
 ```
 s1 = {1, 2, 3, 4}
@@ -240,7 +240,7 @@ print(result)  # {1}
 
 ### 4. `symmetric_difference()` / `^` - 对称差集
 
-python
+
 
 ```
 s1 = {1, 2, 3, 4}
@@ -265,7 +265,7 @@ print(result)  # {1, 2, 5, 6}
 
 ### 1. `intersection_update()` - 更新为交集
 
-python
+
 
 ```
 s1 = {1, 2, 3, 4}
@@ -279,7 +279,7 @@ print(s1)  # {3, 4}  (s1 被修改)
 
 ### 2. `difference_update()` - 更新为差集
 
-python
+
 
 ```
 s1 = {1, 2, 3, 4}
@@ -293,7 +293,7 @@ print(s1)  # {1, 2}  (s1 被修改)
 
 ### 3. `symmetric_difference_update()` - 更新为对称差集
 
-python
+
 
 ```
 s1 = {1, 2, 3, 4}
@@ -311,7 +311,7 @@ print(s1)  # {1, 2, 5, 6}  (s1 被修改)
 
 ### 1. `issubset()` / `<=` / `<` - 子集判断
 
-python
+
 
 ```
 s1 = {1, 2, 3}
@@ -330,7 +330,7 @@ print(s1 < {1, 2, 3})          # False (不是真子集)
 
 ### 2. `issuperset()` / `>=` / `>` - 超集判断
 
-python
+
 
 ```
 s1 = {1, 2, 3, 4, 5}
@@ -349,7 +349,7 @@ print(s1 > {1, 2, 3, 4, 5})           # False (不是真超集)
 
 ### 3. `isdisjoint()` - 判断是否不相交（无交集）
 
-python
+
 
 ```
 s1 = {1, 2, 3}
@@ -368,7 +368,7 @@ print(s1.isdisjoint(s3))  # False (有共同元素 3)
 
 ### 1. 复制 - `copy()`
 
-python
+
 
 ```
 s = {1, 2, 3}
@@ -389,7 +389,7 @@ print(s3)       # {1, 2, 3} (不受影响)
 
 ### 2. 获取长度 - `len()`
 
-python
+
 
 ```
 s = {1, 2, 3, 4, 5}
@@ -400,7 +400,7 @@ print(len(s))  # 5
 
 ### 3. 成员检查 - `in` / `not in`
 
-python
+
 
 ```
 s = {1, 2, 3, 4, 5}
