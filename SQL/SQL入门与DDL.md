@@ -24,6 +24,8 @@
 
 所以, 操作数据库的SQL语言, 也基于功能, 可以划分为 4 类: 
 
+
+
 + 数据定义: DDL (Data Definition Lanauage)
   + 库的创建删除, 表的创建删除等
 + 数据操纵: DML (Data Manipulation Language)
@@ -66,7 +68,9 @@
 
 
 
-## 库的相关操作
+## DDL 
+
+### 库的相关操作
 
 基础命令及功能: 
 
@@ -106,7 +110,7 @@ drop database world;
 
 
 
-## 表的相关操作 
+### 表的相关操作
 
 基本命令及功能
 
@@ -115,6 +119,28 @@ drop database world;
 | show tables;                | 查看当前数据库内有哪些表 |
 | drop table 表名称           | 删除表                   |
 | drop table if exists 表名称 | 删除表                   |
+
+
+
+#### `drop table 表名`
+
+直接删除表。
+
+-  如果**表存在**：正常删掉表（表结构 + 全部数据一起消失）
+-  如果**表不存在**：直接报错，整条 SQL 脚本停止往下执行。
+
+> 示例：student 已经被删掉，再执行
+>
+> `drop table student;` → 报错误：Table 'world.student' doesn't exist，后面的 SQL 不再运行。
+
+#### `drop table if exists 表名`
+
+`if exists` = **如果存在才执行删除**
+
+-  表存在：删除表，和上面效果一模一样
+-  表不存在：**不报错，静默跳过，继续执行后面的 SQL**
+
+
 
 创建表
 
@@ -128,10 +154,31 @@ create table 表名称(
 
 列类型有: 
 
-| 名称      | 类型                             |
-| --------- | -------------------------------- |
-| int       | 整数                             |
-| float     | 浮点数                           |
-| varchar   | 文本, 长度为数字, 做最大长度限制 |
-| date      | 日期类型                         |
-| timestamp | 时间戳类型                       |
+| 名称              | 类型                             |
+| ----------------- | -------------------------------- |
+| int               | 整数                             |
+| float             | 浮点数                           |
+| varchar(最大长度) | 文本, 长度为数字, 做最大长度限制 |
+| date              | 日期类型                         |
+| timestamp         | 时间戳类型                       |
+
+
+
+```sql
+use world
+
+-- 创建一个学生表
+create table Student(
+	id int, 
+	-- 括号内表示最大长度限制
+	name varchar(10),  
+	age int
+);  
+
+-- 查看当前库中的表
+show tables;  
+
+-- 删除表 
+drop table Student; 
+```
+
