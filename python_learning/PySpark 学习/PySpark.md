@@ -8,6 +8,70 @@ PySpark 是Spark 的Python实现 ,是Spark 为python开发者提供的编程入�
 
 pyspark 不仅可以作为python第三方库使用, 也可以将程序提交到spark 集群环境中, 调度大规模集群进行执行 
 
-## 构建PySpark 执行环境入口对象 
+## 构建PySpark 执行环境入口对象
 
 想要使用PySpark库完成数据处理, 首先需要构建一个执行环境入口
+
+PySpark 的执行入口对象是: 类SparkContex: 的类对象
+
+```python
+# 导包
+from pyspark import SparkConf, SparkContext
+
+# 创建SparkConf 类对象
+conf = SparkConf().setMaster("local[*]").setAppName("test_spark_app")
+
+# 基于 SparkConf 类对象创建的 SparkContext 类对象
+sc = SparkContext(conf = conf)
+
+# 打印 PySpark 的运行版本
+print(sc.version)
+
+# 停止 SparkContext 对象的运行 (停止 PySpark 程序)
+sc.stop()
+```
+
+`conf = SparkConf().setMaster("local").setAppName("test_spark_app")` 
+
+这段代码是 PySpark 配置对象的初始化代码, 用来创建 Spark 的配置实例 conf,
+
+参数含义: 
+
+1. `.setMaster("local")`
+
+指定运行模式为本地模式，不连接集群，在本机单机运行 Spark；
+
+- `	local`：使用 1 个 CPU 线程运行；
+- 常用变体：`local[*]` 使用本机所有 CPU 核心（开发测试最常用）。
+
+2. `.setAppName("test_spark_app")`
+
+给这个 Spark 应用起名字
+
+```
+test_spark_app
+```
+
+这个名字会显示在 Spark WebUI 监控页面，方便识别程序。
+
+
+
+`sc = SparkContext(conf=conf)` 
+
+这段代码就是根据前面写的配置, 正式启动 Spark 程序
+
+## PySpark 的编程模型
+
+SparkContext 类对象, 是PySpark 编程中一切功能的入口 
+
+PySpark 的编程, 只要分为以下三个步骤
+
+<img src="C:\Users\Lenovo\AppData\Roaming\Typora\typora-user-images\image-20260821224315765.png" alt="image-20260821224315765" style="zoom: 200%;" />
+
+通过SparkContext 对象, 完成对数据的输入
+
+输入数据后得到转换为 RDD 对象 ,调用RDD的成员方法进行迭代计算 
+
+最终通过RDD对象的成员方法, 将结果输出到 list ,元组, 字典, 文本文件, 数据库等
+
+![image-20260821224749980](C:\Users\Lenovo\AppData\Roaming\Typora\typora-user-images\image-20260821224749980.png)
