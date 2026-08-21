@@ -173,3 +173,59 @@ select name, min(age), max(age), count(age) from student group by name;
 ```
 
 ![image-20260821020453718](C:\Users\Lenovo\AppData\Roaming\Typora\typora-user-images\image-20260821020453718.png)
+
+group by 中出现了哪个列, 哪个列才能出现在 select 中的非聚合中
+
+## 排序分页
+
+### 排序
+
+可以对查询的结果, 使用order by 关键字, 指定某个列进行排序
+
+基础语法: 
+
+```sql
+select 列 / 聚合函数 / * from 表
+where 判断条件
+group by ...
+order by ... [ASC / DESC]
+```
+
++ ASC 表示升序排序 (从小到大)
++ DESC 表示降序排序 (从大到小)
+
+例如: 
+
+```sql
+select name, count(name) from student where id = 1 group by name order by count(name) asc; 
+```
+
+###  结果分页限制 
+
+同样, 可以使用LIMT 关键字, 对查询结果进行数量限制或分页显示,
+
+语法: 
+
+```sql
+select 列 / 聚合函数 / * from 表 
+where ... 
+group by ... 
+order by ... [ASC / DESC] 
+limit n [, m]
+```
+
+
+
+```sql
+select * from student limit 5; 
+```
+
+表示限制 5 条数据 
+
+
+
+```sql
+select * from student limit 5, 3; 
+```
+
+表示跳过 5 条数据, 从第 6 条开始, 向后取 3 条数据
