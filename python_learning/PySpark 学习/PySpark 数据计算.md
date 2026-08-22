@@ -179,7 +179,7 @@ sc = SparkContext(conf = conf)
 
 lst = [1, 2, 3, 4, 5]
 rdd = sc.parallelize(lst)
-
+ 
 rdd2 = rdd.filter(lambda x: x % 2 == 0)
 
 print(rdd2.collect()) # [2, 4]
