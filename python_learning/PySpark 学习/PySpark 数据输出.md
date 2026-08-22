@@ -95,5 +95,46 @@ print(count) # 5
 功能: 将 RDD 的数据写入文本文件中 , 支持本地写入, hdfs 等文件系统 
 
 ```python
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.master("local[*]").appName("Spark_test").getOrCreate()
+sc = spark.sparkContext
+
+rdd = sc.parallelize([1, 2, 3, 4,5])
+rdd.saveAsTextFile("Spark_test.txt")
+spark.stop()
 ```
+
+
+
+#### 修改 rdd 分区为 1
+
+##### 方式 1: SparkConf 对象设置属性全局并行度为 1
+
+```python
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.master("local[*]").appName("Spark_test").getOrCreate() 
+
+# 加上这一行
+spark.conf.set("spark.default.parallelism", "1")
+
+sc = spark.sparkContext 
+```
+
+这种写法也可以写在spark的创建步骤中 
+
+```python
+spark = SparkSession.builder.master("local[*]").appName("Spark_test").config("spark.default.parallelism", "1").getOrCreate()
+```
+
+##### 方式二: 创建 RDD 的时候设置 (parallelize方法传入 numSlices 参数为 1)
+
+
+
+```python
+rdd = sc.parallelize([1, 2, 3, 4,5], numSlices = 1) 
+
+rdd = sc.parallelize([1, 2, 3, 4,5], 1) 
+```
+
+
 
