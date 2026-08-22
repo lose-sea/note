@@ -54,11 +54,48 @@ test_spark_app
 
 这个名字会显示在 Spark WebUI 监控页面，方便识别程序。
 
-
-
 `sc = SparkContext(conf=conf)` 
 
 这段代码就是根据前面写的配置, 正式启动 Spark 程序
+
+
+
+现在 Spark 更推荐用 SparkSession (DataFrame API)，而不是老式 SparkContext RDD
+
+新版的构建入口对象方法: 
+
+```python
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.master("local").appName("SparkName").getOrCreate()
+sc = spark.sparkContext
+```
+
++ `spark = SparkSession.builder.master("local").appName("SparkName").getOrCreate()` 
+
+这是链式调用: 
+
+1. .builder
+
+   + 静态属性, 返回Builder 构建器对象
+
+   + 用于配置 SparkSession 参数 (类似建造者设计模式) 
+
+2. .master(“local”)
+   + 指定运行模式 
+   + `“local”` : 单线程本地模式
+   + `“local[*]”`使用所有CPU 核心
+3. .appName(“SparkName”) 
+   + 设备应用名称
+4. .getCreate() 
+   + 首次调用: 根据配置创建新的 SparkSession
+   + 后续调用: 如果已经存在相同配置的 SparkSession , 直接复用(避免直接创建)
+   + 比旧版的 SparkContext 更加灵活, 支持懒加载和单例模式
+
+
+
++ `sc =  spark.sparkContext` 
+  + 新版 SparkSession 内部自动创建了 SparkContext 
+  + 通过这个属性可以获取到底层的 RDD 操作接口
 
 ## PySpark 的编程模型
 
