@@ -38,5 +38,62 @@ rdd.reduce(func)
 
 
 
+```python
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.master("local[*]").appName("Spark_test").getOrCreate()
+sc = spark.sparkContext
 
+# 准备 RDD
+rdd = sc.parallelize([1, 2, 3, 4, 5])
+
+# reduce 算子,输出为list对象
+num = rdd.reduce(lambda x, y: x + y)
+print(num) # 15
+```
+
+### take 算子
+
+功能: 取出 RDD 的前 N 个元素, 组成 list 返回
+
+
+
+```python
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.master("local").appName("PySpark").getOrCreate()
+sc = spark.sparkContext
+
+rdd = sc.parallelize([1, 2, 3, 4, 5])
+num = rdd.take(3)
+print(num) # [1, 2, 3]
+
+result = rdd.take(rdd.count())
+print(result) # [1, 2, 3, 4, 5]
+```
+
+
+
+### count 算子 
+
+功能: 计算RDD 有多少条数据, 返回值是一个数字 
+
+```python 
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.master("local").appName("PySpark").getOrCreate()
+sc = spark.sparkContext
+
+rdd = sc.parallelize([1, 2, 3, 4, 5])
+count = rdd.count()
+print(count) # 5
+```
+
+
+
+## 将 RDD 内容输出到文件中 
+
+### saveAsTextFile 算子 
+
+功能: 将 RDD 的数据写入文本文件中 , 支持本地写入, hdfs 等文件系统 
+
+```python
+```
 
