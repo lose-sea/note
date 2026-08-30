@@ -1,3 +1,7 @@
+[TOC]
+
+
+
 # PHPicker
 
 之前笔学习了用 `UIImagePickerController` 来访问设备上的图片, 但是UIImagePickerController 有一个很大的局限, 那就是一次只能选择一张图片, 但是很多时候, 我们访问相册之后需要选择多张图片, 于是, 笔者了解到了用 `PHPicker` 来选择访问相册可以选择多张图片. 
@@ -123,7 +127,7 @@ picker.delegate = self;
 
 这是一个Block 回调, 在异步加载完成后执行 
 
-##### `object: (__kindof id<NSItemProviderReading> _Nullable)`
+ `object: (__kindof id<NSItemProviderReading> _Nullable)`
 
 + **类型**：`__kindof` 表示返回的对象是 `aClass` 或其子类的实例。
   + 如果请求 `[UIImage class]`，这里就是 `UIImage *`。
@@ -132,7 +136,7 @@ picker.delegate = self;
   +  **成功**：返回实际的数据对象。
   +  **失败**：返回 `nil`（此时 `error` 不为 nil）。
 
-##### `error: (NSError * _Nullable)`
+`error: (NSError * _Nullable)`
 
 + **成功时**：`nil`。
 + **失败时**：包含错误信息的 `NSError` 对象。
