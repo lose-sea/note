@@ -46,7 +46,7 @@ resp.encoding = 'utf-8'
 print(resp.text)
 ```
 
-
+**Requests 库的作用: Requests 库是Python中最流行, 最优雅的HTTP客户端库, 让Python代码发送HTTP请求变得极其简单**
 
 ## GET请求
 
