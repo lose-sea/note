@@ -307,6 +307,17 @@ WCDB_PRIMARY_AUTO_INCREMENT(myId)
 ### 更新数据
 
 ```objc
+- (void) updateData {
+    // 将 userID 为 1 的用户改为 "王五"
+    BOOL success = [self.database updateTable: @"MyWCDB" setProperty: MyWCDB.name toValue:  @"王五" where: MyWCDB.userID == 1];
+    if (success) {
+        printf("success");
+    } else {
+        NSLog(@"fail");
+    }
+    
+    [self queryData];
+}
 ```
 
 
