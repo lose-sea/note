@@ -1,4 +1,6 @@
-# GCD 
+[TOC]
+
+# GCD
 
 GCD 全称：**Grand Central Dispatch**,
 
@@ -191,7 +193,13 @@ dispatch_async(dispatch_get_global_queue(0, 0), ^{
 
 这里的执行结果是
 
-![image-20260903201457395](/Users/lose_sea/Desktop/pintures/image-20260903201457395.png)
+```obj
+1
+3
+2
+```
+
+
 
 这是因为: 
 
