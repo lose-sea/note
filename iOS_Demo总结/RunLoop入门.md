@@ -111,3 +111,47 @@ NSRunLoopCommonModes
 UITrackingRunLoopMode
 ```
 
+#### Timer 在滚动的时候会失效
+
+例如: 
+
+```objc
+[NSTimer scheduledTimerWithTimeInterval:1
+                                 target:self
+                               selector:@selector(test)
+                               userInfo:nil
+                                repeats:YES];
+```
+
+*默认Timer被加入 **`NSDefaultRunLoopMode`***
+
+那么这时候有一个TableView, 在滑动TableView的时候, Timer就会失效
+
+这是因为在UITableView上滑动的时候: 
+
+```objc
+RunLoop
+    ↓
+进入 UITrackingRunLoopMode
+    ↓
+Default Mode 暂时不处理
+    ↓
+Timer 不触发
+```
+
+那么如何解决这个问题呢? 
+
+只需要将 Timer 加入到 `NSRunLoopCommonModes`
+
+```objc
+NSTimer *timer =
+[NSTimer timerWithTimeInterval:1
+                         target:self
+                       selector:@selector(test)
+                       userInfo:nil
+                        repeats:YES];
+
+[[NSRunLoop mainRunLoop] addTimer:timer
+                          forMode:NSRunLoopCommonModes];
+```
+
