@@ -69,7 +69,7 @@ NSThread *thread = [[NSThread alloc] initWithBlock:^{
 
 如果不调用: `[[NSRunLoop currentRunLoop] run];`,那么子线程执行完任务之后就结束了
 
-# 为什么 RunLoop 能让线程休眠？
+## 为什么 RunLoop 能让线程休眠
 
 底层并不是简单的：
 
@@ -96,3 +96,18 @@ Mach Port / Source / Timer 等事件到来
 所以 RunLoop 的核心价值之一就是：
 
 > **避免线程在没有任务的时候持续占用 CPU。**
+
+ **RunLoop的核心组成: Mode, Source, Timer, Observer** 
+
+### RunLoop Mode
+
+RunLoop 并不是把所有的事件全部一起处理, 它通过Mode对事件进行分类
+
+常见的 Mode 有: 
+
+```objc
+NSDefaultRunLoopMode
+NSRunLoopCommonModes
+UITrackingRunLoopMode
+```
+
