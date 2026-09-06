@@ -31,12 +31,12 @@ dispatch_get_global_queue(
 >
 > 这个参数决定了**这个队列里的任务，能获得多少 CPU 时间片**。
 >
-> | 优先级常量                           | 含义                                     | 使用场景                                                     |
-> | :----------------------------------- | :--------------------------------------- | :----------------------------------------------------------- |
-> | `DISPATCH_QUEUE_PRIORITY_HIGH`       | **高优先级**（QOS_CLASS_USER_INITIATED） | 用户**正在等待结果**的操作，比如下拉刷新、点击按钮后加载数据。系统会分配更多 CPU 资源给它，让它尽快完成。 |
-> | `DISPATCH_QUEUE_PRIORITY_DEFAULT`    | **默认优先级**（QOS_CLASS_DEFAULT）      | 大多数常规任务。介于 High 和 Low 之间。                      |
-> | `DISPATCH_QUEUE_PRIORITY_LOW`        | **低优先级**（QOS_CLASS_UTILITY）        | **耗时但不紧急**的操作，比如下载大文件、数据同步、数据库备份。系统会在 CPU 空闲时执行它，不影响 UI 流畅度。 |
-> | `DISPATCH_QUEUE_PRIORITY_BACKGROUND` | **后台优先级**（QOS_CLASS_BACKGROUND）   | **用户不感知**的任务，比如数据预加载、清理缓存。系统会在**极低功耗**状态下执行，甚至可能推迟到设备充电时执行。 |
+> | 含义                                     | 优先级常量                           | 使用场景                                                     |
+> | :--------------------------------------- | :----------------------------------- | :----------------------------------------------------------- |
+> | **高优先级**（QOS_CLASS_USER_INITIATED） | `DISPATCH_QUEUE_PRIORITY_HIGH`       | 用户**正在等待结果**的操作，比如下拉刷新、点击按钮后加载数据。系统会分配更多 CPU 资源给它，让它尽快完成。 |
+> | **默认优先级**（QOS_CLASS_DEFAULT）      | `DISPATCH_QUEUE_PRIORITY_DEFAULT`    | 大多数常规任务。介于 High 和 Low 之间。                      |
+> | **低优先级**（QOS_CLASS_UTILITY）        | `DISPATCH_QUEUE_PRIORITY_LOW`        | **耗时但不紧急**的操作，比如下载大文件、数据同步、数据库备份。系统会在 CPU 空闲时执行它，不影响 UI 流畅度。 |
+> | **后台优先级**（QOS_CLASS_BACKGROUND）   | `DISPATCH_QUEUE_PRIORITY_BACKGROUND` | **用户不感知**的任务，比如数据预加载、清理缓存。系统会在**极低功耗**状态下执行，甚至可能推迟到设备充电时执行。 |
 >
 > > **iOS 8+ 后，苹果推荐使用新的 `QOS_CLASS_\*`（服务质量），但为了兼容老代码，`DISPATCH_QUEUE_PRIORITY_\*` 依然随处可见。两者是对应的。**
 >
@@ -47,6 +47,146 @@ dispatch_get_global_queue(
 
 ## 自定义队列
 
+自定义队列使用 `dispath_queue_create()` 方法
+
+例如: 
+
 ```objc
+dispatch_queue_t queue = dispatch_queue_create("com.demo.downLoad", DISPATCH_QUEUE_SERIAL); 
 ```
 
+### 为什么需要自定义队列 
+
+实际开发中：
+
+例如：
+
+图片下载：
+
+```
+下载队列
+```
+
+数据库操作：
+
+```
+DB队列
+```
+
+缓存：
+
+```
+Cache队列
+```
+
+业务隔离：
+
+```
+Network Queue
+Database Queue
+Image Queue
+```
+
+------
+
+例如：
+
+```objc
+_networkQueue =
+dispatch_queue_create(
+"network",
+DISPATCH_QUEUE_CONCURRENT
+);
+```
+
+之后：
+
+```objc
+dispatch_async(_networkQueue,^{
+    
+});
+```
+
+## 全局队列与自定义队列
+
+全局队列 (global queue) 适合 普通后台任务, 例如
+
+```objc
+dispatch_async(
+dispatch_get_global_queue(0, 0), A^{
+    
+}); 
+```
+
+自定义队列适合: 需要管理任务关系 
+
+例如: 数据库 
+
+```objc
+写 1
+写 2
+写 3
+```
+
+这里为了保证写操作顺序, 使用串行队列 `Serial Queue` 
+
+
+
+## Qos (Quality of Service) 
+
+Qos: 服务质量等级
+
+就是告诉系统: 这个任务的重要程度
+
+Apple 定义了几个等级: 
+
+### User Interactive  
+
+最高优先级, 用于 **用户马上看到的操作** 
+
+例如: 
+
++ UI 动画
++ 触摸响应
++ 页面刷新
+
+### User Initiated 
+
+用户主动触发.
+
+例如: 
+
++ 打开文件
+
++ 加载页面数据 
+
+用户正在等待
+
+### Utility 
+
+普通耗时任务 
+
+例如: 
+
++ 下载
++ 导出文件
++ 计算
+
+### Background 
+
+最低优先级 
+
+例如: 
+
++ 后台同步
++ 日志上传
++ 缓存清理
+
+
+
+| 含义                                     | 优先级常量                           | 使用场景                                                     |
+| :--------------------------------------- | :----------------------------------- | :----------------------------------------------------------- |
+| **高优先级**（QOS_CLASS_USER_INITIATED） | `DISPATCH_QUEUE_PRIORITY_HIGH`       | 用户**正在等待结果**的操作，比如下拉刷新、点击按钮后加载数据。系统会分配更多 CPU 资源给它，让它尽快完成。 |
+| **默认优先级**（QOS_CLASS_DEFAULT）      | `DISPATCH_QUEUE_PRIORITY_DEFAULT`    | 大多数常规任务。介于 High 和 Low 之间。                      |
+| **低优先级**（QOS_CLASS_UTILITY）        | `DISPATCH_QUEUE_PRIORITY_LOW`        | **耗时但不紧急**的操作，比如下载大文件、数据同步、数据库备份。系统会在 CPU 空闲时执行它，不影响 UI 流畅度。 |
+| **后台优先级**（QOS_CLASS_BACKGROUND）   | `DISPATCH_QUEUE_PRIORITY_BACKGROUND` | **用户不感知**的任务，比如数据预加载、清理缓存。系统会在**极低功耗**状态下执行，甚至可能推迟到设备充电时执行。 |
