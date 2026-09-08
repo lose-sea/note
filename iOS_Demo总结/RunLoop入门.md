@@ -41,7 +41,15 @@ RunLoop 解决的就是：
 
 所以可以把它理解成：
 
-> **RunLoop = 线程的“事件调度中心” + 休眠/唤醒机制**
+> **RunLoop = 线程的“事件调度中心” + 休眠/唤醒机制** 
+
+
+
+ **RunLooP作用**
+
++ 保持线程 (尤其是主线程) 持续运行, 不退出
++ 处理 App 中的各种事件 (触摸, Timer, performSelector, GCD主队列任务, 界面刷新) 
++ 节省CPU 资源: 有事做事, 无事休眠
 
 ## RunLoop 和 线程的关系
 
@@ -106,9 +114,19 @@ Mach Port / Source / Timer 等事件到来
 
  **RunLoop的核心组成: Mode, Source, Timer, Observer** 
 
-## RunLoop Mode
+## RunLoop Mode (运行模式)
 
 RunLoop 并不是把所有的事件全部一起处理, 它通过Mode对事件进行分类
+
+Mode：
+
+| Mode 名称                                    | 说明                                                         |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| kCFRunLoopDefaultMode / NSDefaultRunLoopMode | 默认模式，App 平时运行在这里                                 |
+| UITrackingRunLoopMode                        | 界面追踪模式（UIScrollView 滑动时切换到这个模式）            |
+| kCFRunLoopCommonModes / NSRunLoopCommonModes | **伪模式 / 标记**，不是真实 Mode。默认包含 Default + Tracking |
+| UIInitializationRunLoopMode                  | App 启动时的临时 Mode，启动完成后不再使用                    |
+| GSEventReceiveRunLoopMode                    | 系统内部接收事件用（一般碰不到）                             |
 
 常见的 Mode 有: 
 
@@ -117,6 +135,8 @@ NSDefaultRunLoopMode
 NSRunLoopCommonModes
 UITrackingRunLoopMode
 ```
+
+主线程的 RunLoop 是在 UIApplicationMain 内部自动创建并启动的 (最终调用CFRunLoop), 所以App可以一直运行
 
 #### Timer 在滚动的时候会失效
 
@@ -214,7 +234,7 @@ Source 1
 处理事件
 ```
 
-## TImer 
+## Timer
 
 `NSTimer` 也是RunLoop 的一个输入源, 这里需要注意的是: NSTimer 本身不是一个独立线程
 
@@ -338,3 +358,125 @@ kCFRunLoopAfterWaiting
 kCFRunLoopExit
 ```
 
+## RunLoop 一次完整运行过程
+
+
+
+```
+          RunLoop 开始
+               ↓
+        BeforeTimers
+               ↓
+        BeforeSources
+               ↓
+       处理 Timer / Source
+               ↓
+        是否还有事件？
+          ↙          ↘
+        有             没有
+        ↓               ↓
+      继续          BeforeWaiting
+                        ↓
+                     休眠
+                        ↓
+              事件到达 / Timer 到期
+                        ↓
+                  AfterWaiting
+                        ↓
+                  处理事件
+                        ↓
+                     循环
+```
+
+可以把它浓缩成：
+
+```
+进入
+ ↓
+处理事件
+ ↓
+没有事件
+ ↓
+休眠
+ ↓
+被唤醒
+ ↓
+处理事件
+ ↓
+循环
+```
+
+## RunLoop 和 线程保活
+
+比如创建一个常驻线程: 
+
+```objc
+    NSThread* thread = [[NSThread alloc] initWithBlock:^{
+        
+        [[NSRunLoop currentRunLoop] addPort:
+               [NSPort port]
+               forMode:NSDefaultRunLoopMode];
+
+           [[NSRunLoop currentRunLoop] run];
+    }];
+```
+
+**`NSThread* thread = [[NSThread alloc] initWithBlock:^{ ... }];`** 
+
++ 作用: 创建一个新的子线程对象
++ `initWithBlock`: 告诉这个线程; “当启动时候,执行 Block 里面的代码” 
++ 此时,线程还没有启动, 知识准别好了 
+
+```objc
+ [[NSRunLoop currentRunLoop] addPort:
+       [NSPort port]
+       forMode:NSDefaultRunLoopMode];
+
+   [[NSRunLoop currentRunLoop] run];
+```
+
+**`[NSRunLoop currentRunLoop]`**
+
++ 获取当前线程的 RunLoop 
++ 因为这段代码写在 Block 里, 而 Block 会在子线程中执行, 所以这里拿到的是子线程的 RunLoop 
+
+**`[NSPort port]`** 
+
++ 创建一个 Port (端口) 
++ 可以把它理解成一个虚拟的 “信箱“,, 有了这个信箱, RunLoop 就会认为: “我有东西要监听,不能退出”
+
+**`add:forMode:`**
+
++ 把上面的信箱加入到 RunLoop 中 
++ 作用: 给RunLoop添加一个永久有效的事件源, 让它有事可做, 不会空转退出
+
+**`[thread start]`**
+
++ 启动子线程
++ 这时, 子线程开始执行 Block 里的代码
+
+###  为什么必须要有 `addPort`？
+
+这是一个**极其关键**的问题。
+
+### 没有 `addPort` 的情况：
+
+```
+[[NSRunLoop currentRunLoop] run];
+```
+
++ RunLoop 启动后，会检查自己有没有**事件源**（比如 Timer、Port、Observer）。
++ 如果**什么都没有**，RunLoop 会认为：“我没事可做，没必要继续跑。”
++ 于是，**RunLoop 立即退出**，子线程执行完所有代码，**线程被销毁**。
+
+### 有 `addPort` 的情况：
+
+```
+[[NSRunLoop currentRunLoop] addPort:[NSPort port] forMode:NSDefaultRunLoopMode];
+[[NSRunLoop currentRunLoop] run];
+```
+
+
+
++ 添加 Port 后，RunLoop 发现：“我有一个 Port 要监听，我不能退出。”
++ 于是，**RunLoop 进入永久等待状态**，线程永不销毁。

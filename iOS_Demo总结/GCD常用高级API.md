@@ -470,3 +470,49 @@ D ──────────────┘
 
 
 
+### 创建 semaphore
+
+```objc
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(3); 
+```
+
+这里参数中的 3 可以理解成 3 个“许可证”
+
+第一个任务 `dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER); ` 拿走一个“许可证”, 执行任务
+
+完成任务后, `dispatch_semaphore_signal(semaphore)` “归还许可证”
+
+```objc
+dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
+    
+    dispatch_queue_t queue = dispatch_queue_create("concurrent_queue", attr);
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(3);
+    
+    for (int i = 0; i < 100; i++) {
+        dispatch_async(queue, ^{
+
+            dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+            NSLog(@"task %d start", i);
+            
+            NSLog(@"task %d end", i);
+            
+            dispatch_semaphore_signal(semaphore);
+
+        });
+    }
+```
+
+### wait 与 signal 
+
+wait -> 拿资源 
+
+signal -> 还资源 
+
+所以: 
+
+```objc
+dispatch_semaphore_wait(semaphore, ...); 
+    使用资源
+dispatch_semaphore_signal(semaphore); 
+```
+
