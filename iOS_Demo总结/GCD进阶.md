@@ -188,3 +188,31 @@ Apple 定义了几个等级:
 | **默认优先级**（QOS_CLASS_DEFAULT）      | `DISPATCH_QUEUE_PRIORITY_DEFAULT`    | 大多数常规任务。介于 High 和 Low 之间。                      |
 | **低优先级**（QOS_CLASS_UTILITY）        | `DISPATCH_QUEUE_PRIORITY_LOW`        | **耗时但不紧急**的操作，比如下载大文件、数据同步、数据库备份。系统会在 CPU 空闲时执行它，不影响 UI 流畅度。 |
 | **后台优先级**（QOS_CLASS_BACKGROUND）   | `DISPATCH_QUEUE_PRIORITY_BACKGROUND` | **用户不感知**的任务，比如数据预加载、清理缓存。系统会在**极低功耗**状态下执行，甚至可能推迟到设备充电时执行。 |
+
+### QoS 的使用
+
+```objc
+dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
+dispatch_queue_t queue = dispatch_queue_create("download", attr);
+```
+
+上面这段代码是创建了一个download queue, Qos为 User Initiated 
+
+第一步: `dispath_queue_attr_t attr = ...` 
+
+ + dispath_queue_attr_t 是队列的属性 (Attribute) 类型 
+ + 它是用来描述这个队列是以什么方式运行 (串行, 并发, 优先级)
+
+第二步: `dispatch_queue_attr_make_with_qos_class(...)` 
+
+这个函数接收 3 个参数, 用来组装属性
+
++ 参数一: `DISPATCH_Queue_SERIAL`, 队列类型, 如果是 `DISPATCH_QUEUE_CONCURRENT` 就是并发
++ 参数er: `QOS_CLASS_USER_INITIATED` 服务质量, 这里是 user Initiated, 任务优先级很高, 用户正在界面上等待结果 
++ 参数三: 0 保留位, 永远写 0 
+
+第三步: 创建队列 `dispatch_queue_create('download', attr); `
+
+第一个参数: `download`: 给队列起的名字,方便调试 
+
+第二个参数: `attr`: 把刚才组装好的属性传传进去
