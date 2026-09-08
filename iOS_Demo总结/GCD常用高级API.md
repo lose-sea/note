@@ -408,4 +408,65 @@ dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
 
 > 前面的读任务全部完成以后，执行写任务；写任务完成以后，后面的读任务才能执行。
 
-这就是 barrier。
+这就是 barrier。 
+
+代码
+
+```objc
+dispatch_queue_t queue =
+    dispatch_queue_create(
+        "com.demo.database",
+        DISPATCH_QUEUE_CONCURRENT
+    );
+
+dispatch_async(queue, ^{
+    NSLog(@"读 A");
+});
+
+dispatch_async(queue, ^{
+    NSLog(@"读 B");
+});
+
+dispatch_barrier_async(queue, ^{
+    NSLog(@"写入");
+});
+
+dispatch_async(queue, ^{
+    NSLog(@"读 C");
+});
+
+dispatch_async(queue, ^{
+    NSLog(@"读 D");
+});
+```
+
+可以理解成：
+
+```
+       Concurrent Queue
+
+A ──────────────┐
+B ──────────────┤
+                ↓
+             Barrier
+                ↓
+             写入
+                ↓
+C ──────────────┐
+D ──────────────┘
+```
+
+
+
+ **barrier 不是所有队列都有效**
+
+> `dispatch_barrier_async` 真正具有上述屏障意义, 主要针对: **自己创建的 concurrent queue**, 在全局队列或者串行队列上, `dispatch_barrier_async`   的行为会退化为普通的`dispatch_async`  ,完全失去隔离效果
+
+
+
+## dispath_semaphore: 信号量
+
+假设有100个任务 ,但是同时最多允许 3  个任务执行,怎么办, 这个时候使用 semaphore 非常合适
+
+
+
