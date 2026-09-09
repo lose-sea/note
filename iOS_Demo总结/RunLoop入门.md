@@ -480,3 +480,23 @@ kCFRunLoopExit
 
 + 添加 Port 后，RunLoop 发现：“我有一个 Port 要监听，我不能退出。”
 + 于是，**RunLoop 进入永久等待状态**，线程永不销毁。
+
+## RunLoop 与 performSelector
+
+`performSelector` 是 **NSObject** 提供的一系列方法，允许你**延迟执行**或**在指定线程上执行**某个方法。
+
+```objc
+[self performSelector:@selector(test)
+             onThread:thread
+           withObject:nil
+        waitUntilDone:NO];
+```
+
+### 常见的几种形式：
+
+| 方法                                                         | 作用                     |
+| :----------------------------------------------------------- | :----------------------- |
+| `[obj performSelector:@selector(method)]`                    | 在当前线程立即执行       |
+| `[obj performSelector:withObject:afterDelay:]`               | 延迟执行（依赖 RunLoop） |
+| `[obj performSelector:onThread:withObject:waitUntilDone:]`   | 在指定线程执行           |
+| `[obj performSelectorOnMainThread:withObject:waitUntilDone:]` | 在主线程执行             |
