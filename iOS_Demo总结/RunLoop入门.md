@@ -500,3 +500,51 @@ kCFRunLoopExit
 | `[obj performSelector:withObject:afterDelay:]`               | 延迟执行（依赖 RunLoop） |
 | `[obj performSelector:onThread:withObject:waitUntilDone:]`   | 在指定线程执行           |
 | `[obj performSelectorOnMainThread:withObject:waitUntilDone:]` | 在主线程执行             |
+
+这个机制和目标线程的RunLoop 有密切关系
+
+```objc
+主线程
+  ↓
+performSelector
+  ↓
+目标线程 RunLoop
+  ↓
+唤醒
+  ↓
+执行 test
+```
+
+如果创建了一个子线程: 
+
+```objc
+NSThread* thread = ... 
+```
+
+但是如果没有正确启动它的 RunLoop: 
+
+```objc
+[[NSRunloop currentRunLoop] run]; 
+```
+
+那么一些基于RunLoop的任务就有可能无法进行. 
+
+## RunLoop 与 GCD 区别
+
+GCD更偏向 任务调度 
+
+例如:
+
+```objc 
+dispatch_async(dispatch_get_global_queue(0, 0), ^{
+    // 后台任务
+}); 
+```
+
+关注 `任务 -> Queue -> Thread`
+
+RunLoop 更偏向 事件循环
+
+关注: `事件 -> RunLoop -> 处理 -> 休眠 -> 唤醒` 
+
+两者不是互相替代的关系 ,GCD 和 RunLoop 在iOS 系统中是协同工作的 
