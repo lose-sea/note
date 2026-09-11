@@ -1,4 +1,6 @@
-# requirements.txt 
+[toc]
+
+# requirements.txt
 
 `requirements.txt` 是一个**纯文本文件**，用来记录一个 Python 项目所依赖的第三方包及其版本。它的作用是让其他人（或另一台机器）能够**一键复现**项目所需的运行环境。
 
