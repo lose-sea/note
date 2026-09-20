@@ -483,7 +483,7 @@ D ──────────────┘
 完成任务后, `dispatch_semaphore_signal(semaphore)` “归还许可证”
 
 ```objc
-dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
+dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0);
     
     dispatch_queue_t queue = dispatch_queue_create("concurrent_queue", attr);
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(3);
@@ -492,6 +492,11 @@ dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QU
         dispatch_async(queue, ^{
 
             dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+            if (i == 50) {
+                for (int j = 0; j < 5; j++) {
+                    NSLog(@"task %d - %d", i, j);
+                }
+            }
             NSLog(@"task %d start", i);
             
             NSLog(@"task %d end", i);
