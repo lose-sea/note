@@ -171,7 +171,7 @@ UIImage *avatar = [self croppedToSquare:original size:CGSizeMake(36, 36)];
 
 Objective-C
 
-```
+```objc
 avatar = [avatar imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
 ```
 
@@ -181,7 +181,7 @@ initWithCustomView: 依赖 frame 来确定尺寸，不设置可能变成 0 大�
 
 
 
-```
+```objc
 imageButton.frame = CGRectMake(0, 0, 36, 36);
 ```
 
@@ -189,7 +189,7 @@ imageButton.frame = CGRectMake(0, 0, 36, 36);
 
 
 
-```
+```objc
 imageButton.clipsToBounds = YES;
 imageButton.layer.cornerRadius = 18;   // 必须 = 宽高的一半
 ```
@@ -198,7 +198,7 @@ imageButton.layer.cornerRadius = 18;   // 必须 = 宽高的一半
 
 
 
-```
+```objc
 imageButton.imageView.contentMode = UIViewContentModeScaleAspectFill;
 imageButton.contentHorizontalAlignment = UIControlContentHorizontalAlignmentFill;
 imageButton.contentVerticalAlignment = UIControlContentVerticalAlignmentFill;
