@@ -1,6 +1,6 @@
 [TOC] 
 
-# CABasicAnimation
+# CABasicAnimat。ion
 
 `CABasicAnimation` 是 **Core Animation 框架里最基础、最常用的动画类**，用来做「某个属性从一个值平滑变化到另一个值」的补间动画。你项目里封面旋转就是它。下面从概念到实战系统讲一遍。
 
