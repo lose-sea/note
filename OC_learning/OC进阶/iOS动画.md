@@ -8,8 +8,6 @@
 
 先建立整体图景。iOS 动画分几层：
 
-text
-
 ```
 UIKit 层    UIView animateWithDuration:        ← 最简单，做一次性动画
               ↓（底层转成）
@@ -36,7 +34,7 @@ Core Animation 层
 
 每个 `UIView` 背后都有一个 `layer`（`view.layer`）。**所有 Core Animation 的动画都是加到 layer 上的**：
 
-objc
+
 
 ```
 [self.coverImageView.layer addAnimation:rotation forKey:@"coverRotation"];
@@ -59,7 +57,7 @@ objc
 
 ### 1. keyPath —— 要动画的属性
 
-objc
+
 
 ```
 CABasicAnimation *anim = [CABasicAnimation animationWithKeyPath:@"transform.rotation.z"];
@@ -103,8 +101,6 @@ objc
 
 三种组合方式：
 
-objc
-
 ```
 // 方式 1：从 A 到 B（最常用）
 anim.fromValue = @0;
@@ -121,7 +117,7 @@ anim.toValue = @1.0;   // 从当前值变到 1.0
 
 **重要概念**：`fromValue` / `toValue` 是 `id` 类型，所以要装箱：
 
-objc
+
 
 ```
 @0              // NSNumber，int
@@ -137,7 +133,7 @@ objc
 
 ### 3. 时长与控制
 
-objc
+
 
 ```
 anim.duration = 20.0;                    // 一次动画持续 20 秒
@@ -174,7 +170,7 @@ anim.speed = 2.0;                        // 2 倍速
 
 ## 四、把动画加到 layer
 
-objc
+
 
 ```
 [layer addAnimation:anim forKey:@"someKey"];
@@ -197,9 +193,9 @@ objc
 
 ### 模型层（Model Layer）
 
-你直接读写的属性：
+直接读写的属性：
 
-objc
+
 
 ```
 layer.position      // 读到的永远是「真实」值
@@ -213,7 +209,7 @@ layer.opacity
 
 屏幕上实际显示的属性：
 
-objc
+
 
 ```
 layer.presentationLayer.position   // 动画进行中的「当前显示值」
@@ -225,7 +221,7 @@ layer.presentationLayer.position   // 动画进行中的「当前显示值」
 
 **动画播放时，模型层的值不变，只有表现层在变。**
 
-objc
+
 
 ```
 CABasicAnimation *anim = [CABasicAnimation animationWithKeyPath:@"opacity"];
@@ -249,7 +245,7 @@ layer.opacity                  // 还是 1.0！跳回原值
 + 你的封面停止旋转时，**立即回到未旋转状态**（模型层 `transform` 从没变过）
 + 如果你想让 layer **停留**在终点，必须**同时修改模型层**：
 
-objc
+
 
 ```
 // 动画结束后停留在终点
@@ -272,7 +268,7 @@ layer.opacity = 0.0;
 
 ### 1. 淡出
 
-objc
+
 
 ```
 CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
@@ -288,7 +284,7 @@ layer.opacity = 0.0;   // 同时改模型层，动画结束后保持
 
 ### 2. 缩放
 
-objc
+
 
 ```
 CABasicAnimation *scale = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
@@ -301,9 +297,9 @@ scale.autoreverses = YES;   // 放大后自动缩回
 
 
 
-### 3. 旋转（你的封面）
+### 3. 旋转
 
-objc
+
 
 ```
 CABasicAnimation *rotation = [CABasicAnimation animationWithKeyPath:@"transform.rotation.z"];
@@ -321,8 +317,6 @@ rotation.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTiming
 
 ### 4. 沿 X 轴平移
 
-objc
-
 ```
 CABasicAnimation *move = [CABasicAnimation animationWithKeyPath:@"position.x"];
 move.fromValue = @(layer.position.x);
@@ -335,7 +329,7 @@ move.duration = 0.5;
 
 ## 七、CABasicAnimation 的局限
 
-`CABasicAnimation` 只能做**两个值之间的直线插值**。以下场景它做不了：
+`CABasicAnimation` 只能做**两个值之间的直线插值**。以下场景它做
 
 | 需求                         | 用什么                                   |
 | :--------------------------- | :--------------------------------------- |
@@ -348,7 +342,7 @@ move.duration = 0.5;
 
 **`CAKeyframeAnimation` 示例**（沿路径移动）：
 
-objc
+
 
 ```
 CAKeyframeAnimation *anim = [CAKeyframeAnimation animationWithKeyPath:@"position"];
