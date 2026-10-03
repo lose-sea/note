@@ -33,6 +33,7 @@
 - 发文面板的"分类专栏"下拉始终弹不出来，未能把文章批量归入「AI学习专栏」，待用户在后台手动归类或另找入口。
 - 标签去重经验：CSDN 会同时存在大小写两版同名标签（如 Prompt/prompt、transformer/Transformer），添加后需按**精确大小写**匹配 `.el-tag__close` 删除多余的。
 - **自动化改为目标 10 篇/天**：任务名「每日 AI 学习专栏发文（目标10篇，按额度截断）」。但 CSDN 每日发文额度实测只有 **6 篇/天**（发满后不再增加），所以实际每天最多 6 篇；prompt 里要求先读额度、发 min(10, 额度) 篇，宁可少发不可水文。主题方向扩到 10 个：ai-python / ai-ml / ai-dl / ai-cnn / ai-rnn / ai-transformer / ai-prompt / ai-rag / ai-agent / ai-finetune+ai-eval；其中 ai-cnn、ai-rnn 复用 ai-dl 封面，ai-eval 复用 ai-finetune 封面（缺专属封面，可让用户补）。
+- **自动化触发时间已改为每天 13:00**（2026-10-03 晚用户要求，rrule=FREQ=DAILY;BYHOUR=13;BYMINUTE=0），首次新时间执行 2026-10-04 13:00。
 - **草稿箱优先发布（用户新规则，2026-10-03 04:10）**：以后每次发布，**先把草稿箱清空再写新文章**，草稿篇数计入当天额度。草稿箱入口：mp.csdn.net/mp_blog/manage/article → tab「草稿箱(N)」；`mp_blog/manage/draft` 是 404，不能用。取编辑链接的 eval：`(()=>{const a=[...document.querySelectorAll('a')].filter(x=>x.textContent.trim()==='编辑');return a.map(x=>x.href).join('\n')})()`。
   - **必须按标题查重**：草稿 articleId 不能作为是否已发布的依据（曾出现草稿 id=167014746 与线上已发布文章同号、草稿 id=167013646 与线上 167005760 同题）。做法：管理页搜索框输入标题 + 切「已发布」tab 核对；已存在就删草稿，不重复发。
   - 当前草稿箱遗留（2026-10-03 额度用尽未发）：① 167014746「RAG 检索增强生成——让大模型只根据你的材料回答」（与线上第 6 篇同题，大概率重复，发前查重）② 167013646「NumPy 数组运算——Python 数据处理从零到一」（与线上 167005760 同题）。
