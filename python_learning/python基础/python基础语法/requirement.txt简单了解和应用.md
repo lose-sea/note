@@ -10,7 +10,7 @@ pip install -r requirements.txt
 
 一行命令，就能把所有依赖装好。
 
-## requiremtnes 长什么样?
+## requirements 长什么样?
 
 最简单的形式，每行一个包名：
 
