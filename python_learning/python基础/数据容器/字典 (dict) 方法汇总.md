@@ -28,7 +28,7 @@
 
 
 
-```
+```python
 # 基本用法
 d = {'name': 'Alice', 'age': 25}
 
@@ -54,7 +54,7 @@ print(count)  # {'apple': 2, 'banana': 1, 'orange': 1}
 
 
 
-```
+```python
 # 基本用法
 d = {'name': 'Alice'}
 
