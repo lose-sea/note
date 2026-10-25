@@ -105,7 +105,7 @@ instance == nil         instance == nil
 
 dispatch_once 专门解决这种: 某段代码在整个进程生命周期中只需要安全地执行一次
 
-## dispatch_after 
+## dispatch_after
 
 ```objc 
     NSLog(@"start");
