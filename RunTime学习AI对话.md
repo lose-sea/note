@@ -2823,3 +2823,620 @@ Category
 每一步只解决一个核心问题，用同一组 `Person`、`Animal`、`Dog` 示例贯穿，而不是每次都换一套代码和术语。
 
 我建议下一步就从第二层开始，重新完整地梳理一次 `[person eat]` 的调用过程。 这一步是整条 Runtime 主线的枢纽。只要真正弄清楚消息、方法查找、`SEL`、`IMP` 和缓存之间的关系，后面的内容就更容易找到位置。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+我们继续学习 Objective-C Runtime。上一节讲了动态方法解析，这一节进入它后面的机制：消息转发（Message Forwarding）。
+
+这部分的核心问题是：
+
+当 Runtime 找不到某个方法，而且类也没有通过动态方法解析补充实现时，为什么对象仍然有机会处理这条消息？
+
+# 一、先理解消息转发要解决什么问题
+
+假设有下面的代码：
+
+```
+Person *person = [[Person alloc] init];
+[person dance];
+```
+
+如果 `Person` 没有实现 `dance`，它的父类也没有提供对应实现，那么 Runtime 就无法通过正常方法查找找到 `dance` 的 `IMP`。
+
+动态方法解析也没有解决问题时，Runtime 还会尝试消息转发。
+
+你可以把目前学过的过程串起来：
+
+发送消息
+
+```
+[person dance]
+```
+
+正常方法查找
+
+Cache → 方法列表 → 父类
+
+动态方法解析
+
+尝试动态添加方法实现
+
+消息转发
+
+尝试寻找其他处理方式
+
+如果仍无法处理
+
+`unrecognized selector` 异常
+
+这里有个重要区别：
+
++ 动态方法解析： 尝试为这个类补充方法实现。
++ 消息转发： 即使原对象没有这个方法，也可以尝试把消息交给其他对象，或者通过其他方式处理。
+
+# 二、消息转发分成两个阶段
+
+Objective-C 的消息转发机制中，有两个最重要的阶段。
+
+## 第一阶段：快速转发
+
+对应的方法是：
+
+```
+- (id)forwardingTargetForSelector:(SEL)aSelector;
+```
+
+它的意思是：
+
+当前对象无法正常处理这个选择子时，能不能指定另一个对象来接收这条消息？
+
+例如，假设 `Person` 不会跳舞，但 `Dancer` 会跳舞。
+
+```
+@interface Dancer : NSObject
+- (void)dance;
+@end
+
+@implementation Dancer
+
+- (void)dance {
+    NSLog(@"Dancer 正在跳舞");
+}
+
+@end
+```
+
+`Person` 可以这样处理：
+
+```
+@implementation Person
+
+- (id)forwardingTargetForSelector:(SEL)aSelector {
+    if (aSelector == @selector(dance)) {
+        return [[Dancer alloc] init];
+    }
+
+    return [super forwardingTargetForSelector:aSelector];
+}
+
+@end
+```
+
+当调用：
+
+```
+Person *person = [[Person alloc] init];
+[person dance];
+```
+
+如果前面的动态方法解析没有解决问题，消息转发进入快速转发阶段，那么 `Person` 可以返回一个 `Dancer` 对象。
+
+Runtime 接下来会尝试让 `Dancer` 处理 `dance` 消息。
+
+最终打印：
+
+```
+Dancer 正在跳舞
+```
+
+### 快速转发的特点
+
+1. 不要求把 `dance` 的实现添加到 `Person` 类中。
+2. 返回的是一个能够接收该消息的对象。
+3. 转发的是原消息，而不是让 `Person` 自己调用一个同名方法。
+4. 返回 `nil`，或者返回的对象仍然无法处理消息时，通常会进入后续的完整消息转发流程。
+
+本质：快速转发是在寻找另一个消息接收者。
+
+实际开发中，返回的对象必须有合适的生命周期管理。上面的示例使用临时创建的对象，只用于说明机制；实际设计时通常应考虑复用或持有转发目标。
+
+# 三、第二阶段：完整消息转发
+
+如果快速转发没有解决问题，Runtime 还会尝试完整消息转发。
+
+这一阶段涉及两个方法：
+
+```
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector;
+
+- (void)forwardInvocation:(NSInvocation *)anInvocation;
+```
+
+它们经常一起出现，但职责完全不同。
+
+## 1. `methodSignatureForSelector:`
+
+这个方法负责提供方法签名。
+
+为什么需要方法签名？
+
+因为 Runtime 不仅要知道方法叫什么，还需要知道方法的参数和返回值类型，才能正确组织这次调用。
+
+例如：
+
+```
+- (void)dance;
+```
+
+与：
+
+```
+- (NSInteger)add:(NSInteger)a to:(NSInteger)b;
+```
+
+显然不是同一种调用。第二个方法需要两个参数，并且有返回值。
+
+`methodSignatureForSelector:` 提供的 `NSMethodSignature`，就是描述这些调用信息的对象。
+
+## 2. `forwardInvocation:`
+
+这个方法接收一个 `NSInvocation` 对象。
+
+`NSInvocation` 可以把一次方法调用封装起来，包含选择子、参数以及与调用相关的信息。这样就可以在运行时检查、修改或转交这次调用。
+
+简单对比：
+
+| 方法                          | 主要职责                     |
+| ----------------------------- | ---------------------------- |
+| `methodSignatureForSelector:` | 提供方法签名，说明调用的结构 |
+| `forwardInvocation:`          | 决定如何处理封装好的调用     |
+
+完整转发的灵活性比快速转发更高，但实现也更复杂。
+
+# 四、用一个例子把完整转发串起来
+
+假设 `Person` 没有 `dance` 方法，我们希望它把这次调用转交给一个 `Dancer` 实例。
+
+```
+@interface Person : NSObject
+@property (nonatomic, strong) Dancer *dancer;
+@end
+
+@implementation Person
+
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
+    if (aSelector == @selector(dance)) {
+        return [self.dancer methodSignatureForSelector:aSelector];
+    }
+
+    return [super methodSignatureForSelector:aSelector];
+}
+
+- (void)forwardInvocation:(NSInvocation *)anInvocation {
+    if ([self.dancer respondsToSelector:anInvocation.selector]) {
+        [anInvocation invokeWithTarget:self.dancer];
+    } else {
+        [super forwardInvocation:anInvocation];
+    }
+}
+
+@end
+```
+
+这里假设 `self.dancer` 已经被正确创建和赋值，而且 `Dancer` 实现了 `dance`。
+
+调用：
+
+```
+Person *person = [[Person alloc] init];
+person.dancer = [[Dancer alloc] init];
+
+[person dance];
+```
+
+完整转发的大致过程是：
+
+1. Runtime 无法正常找到 `Person` 的 `dance` 实现。
+2. 动态方法解析和快速转发都没有解决这次调用。
+3. Runtime 向 `Person` 请求 `dance` 的方法签名。
+4. `Person` 返回 `Dancer` 对应的方法签名。
+5. Runtime 将这次调用封装为 `NSInvocation`，交给 `forwardInvocation:`。
+6. `Person` 通过 `invokeWithTarget:` 把调用交给 `Dancer`。
+
+需要注意：完整转发的实现必须为需要处理的选择子提供有效的方法签名。否则，Runtime 无法正确构造这次调用，通常会导致无法识别选择子的异常。示例中的 `respondsToSelector:` 检查也不是完整转发的强制要求，而是用来避免转交给不支持该选择子的目标。
+
+# 五、快速转发和完整转发怎么选？
+
+### 快速转发
+
+```
+forwardingTargetForSelector:
+```
+
+适用于：你只需要把消息交给另一个对象处理，不需要检查或修改调用参数。
+
+### 完整转发
+
+```
+methodSignatureForSelector:` + `forwardInvocation:
+```
+
+适用于：你需要检查、改造、记录或动态转交这次调用，或者需要更灵活的消息分发策略。
+
+这两种方式都不意味着 `Person` 原本就实现了 `dance`。它们是在消息无法通过正常查找解决后，为这次消息提供替代处理方式。
+
+另外，`respondsToSelector:` 默认主要反映对象是否能够识别相应选择子；如果你使用消息转发模拟额外方法，可能还需要根据自己的设计覆盖它，避免外部调用者得到与实际行为不一致的结果。
+
+# 六、把 Runtime 的这条主线重新连起来
+
+目前你已经学过的机制可以分为三层：
+
+1. 正常派发： `isa`、`superclass`、Cache、方法列表和 `IMP`，负责寻找并执行已有实现。
+2. 动态方法解析： `resolveInstanceMethod:` 和 `resolveClassMethod:`，允许类动态补充方法。
+3. 消息转发： `forwardingTargetForSelector:`、`methodSignatureForSelector:` 和 `forwardInvocation:`，允许消息通过其他方式被处理。
+
+如果这些机制都无法解决调用，最终通常就会出现 `unrecognized selector sent to instance` 之类的异常。
+
+下一步，我们可以继续学习 Category（分类）与 Runtime 的关系：为什么分类可以给类增加方法，却不能像普通类那样直接增加实例变量，以及多个分类实现同名方法时会涉及哪些 Runtime 行为。
+
+继续讲解
+
+
+
+
+
+我们继续学习 Objective-C Runtime。前面你已经学完了消息发送、动态方法解析和消息转发，接下来学习 Category（分类）与 Runtime 的关系。
+
+这一节重点理解三个问题：
+
+1. Category 为什么能给已有类增加方法？
+2. Category 为什么不能直接增加实例变量？
+3. 多个 Category 实现同名方法时，Runtime 会发生什么？
+
+# 一、Category 是什么？
+
+在 Objective-C 中，Category 可以让我们在不修改原类源代码的情况下，为已有类增加方法。
+
+例如，原本有一个 `Person` 类：
+
+```
+@interface Person : NSObject
+
+- (void)eat;
+
+@end
+```
+
+现在想为 `Person` 增加一个 `run` 方法。
+
+不一定要修改 `Person.h` 和 `Person.m`，可以创建一个分类。
+
+```
+// Person+Run.h
+
+@interface Person (Run)
+
+- (void)run;
+
+@end
+// Person+Run.m
+
+@implementation Person (Run)
+
+- (void)run {
+    NSLog(@"Person 正在跑步");
+}
+
+@end
+```
+
+使用时：
+
+```
+Person *person = [[Person alloc] init];
+[person run];
+```
+
+这样就可以调用 `run` 方法。
+
+注意，`(Run)` 是分类的名称，不是新建了一个叫 `PersonRun` 的类。分类中的方法最终是为 `Person` 类增加的。
+
+## Category 与继承有什么区别？
+
+| 对比                   | Category   | 继承                       |
+| ---------------------- | ---------- | -------------------------- |
+| 是否创建新类           | 不创建     | 创建子类                   |
+| 方法属于谁             | 扩展已有类 | 通常由子类实现或继承       |
+| 是否改变继承关系       | 不改变     | 建立父子类关系             |
+| 是否能直接增加实例变量 | 不能       | 子类可以定义自己的实例变量 |
+
+理解 Category 的关键是：它扩展的是已有类的能力，而不是创建一个新的类层级。
+
+# 二、Category 为什么能增加方法？
+
+这是 Runtime 相关知识的核心。
+
+先回忆你之前学过的内容：
+
++ 类对象维护与方法查找有关的信息。
++ 方法包含选择子 `SEL` 和实现入口 `IMP` 等信息。
++ `objc_msgSend` 会根据接收者的类及继承关系寻找方法。
+
+那么，Category 增加方法后，为什么下面的代码能够执行？
+
+```
+Person *person = [[Person alloc] init];
+[person run];
+```
+
+原因是：Objective-C Runtime 会在运行时处理分类携带的方法等元数据，使分类中的方法能够参与所属类的方法查找。
+
+可以把它理解为以下过程：
+
+编译后的类信息
+
+`Person` 原本的方法
+
+分类元数据
+
+`Person (Run)` 中的方法
+
+Runtime 处理分类信息
+
+`run` 可以参与 `Person` 的方法查找
+
+这里有一个需要准确理解的细节：分类的方法并不一定是在编译时就直接写进原类最初的那份方法列表。分类有自己的元数据，Runtime 会处理这些信息；在现代 Apple Runtime 的实现中，还涉及分类方法列表的合并与方法列表组织等内部机制。
+
+因此，你可以先建立这个认知：
+
+Category 增加方法，本质上是通过 Runtime 的类元数据和方法派发机制，让这些方法能够被找到和调用。
+
+# 三、为什么 Category 不能直接增加实例变量？
+
+接下来理解一个经常被问到的问题。
+
+假设你想给 `Person` 增加一个属性：
+
+```
+@interface Person (Info)
+
+@property (nonatomic, copy) NSString *nickname;
+
+@end
+```
+
+这段代码看起来很正常，但它有一个关键问题：
+
+`@property` 声明本身，不等于自动生成了实例变量、`getter` 和 `setter` 的完整实现。
+
+对于普通类，编译器通常会根据属性声明和实现，为属性生成相应的访问方法及存储机制。
+
+但对于 Category，单纯声明：
+
+```
+@property (nonatomic, copy) NSString *nickname;
+```
+
+并不会自动为 `nickname` 创建实例存储空间，也不会自动生成可用的访问方法实现。
+
+如果直接这样使用：
+
+```
+person.nickname = @"小明";
+NSLog(@"%@", person.nickname);
+```
+
+而没有另外提供 `setter` 和 `getter` 的实现，通常会出现找不到方法实现的问题。
+
+## 为什么不能像普通类一样增加实例变量？
+
+一个对象创建后，其实例存储布局需要与它所属的类相匹配。
+
+例如，假设 `Person` 的实例中已经有：
+
++ `name`
++ `age`
+
+如果分类可以随意增加新的实例变量，就会涉及如何改变已经确定的对象实例布局、如何为新变量安排存储空间等问题。
+
+普通类的实例布局由类的定义及其继承关系决定。Category 的设计并不是重新定义一个类，也不是创建一个新的实例布局，所以它不能像普通类或子类那样直接增加实例变量。
+
+这里要区分两个概念：
+
++ 增加属性声明： 只是在接口中声明一个属性。
++ 增加属性存储： 必须有实际的存储机制和正确的访问方法实现。
+
+二者并不是一回事。
+
+# 四、Associated Objects：通过 Runtime 为对象关联数据
+
+既然 Category 不能直接增加实例变量，那么我们要如何让分类拥有类似属性的能力？
+
+一个常见方案是 Associated Objects（关联对象）。
+
+它允许我们通过 Objective-C Runtime，把某个值与某个对象关联起来。
+
+例如：
+
+```
+#import <objc/runtime.h>
+
+static char nicknameKey;
+
+@implementation Person (Info)
+
+- (void)setNickname:(NSString *)nickname {
+    objc_setAssociatedObject(self,
+                             &nicknameKey,
+                             nickname,
+                             OBJC_ASSOCIATION_COPY_NONATOMIC);
+}
+
+- (NSString *)nickname {
+    return objc_getAssociatedObject(self, &nicknameKey);
+}
+
+@end
+```
+
+对应的属性声明仍然需要存在于分类的头文件中：
+
+```
+@interface Person (Info)
+
+@property (nonatomic, copy) NSString *nickname;
+
+@end
+```
+
+这样就可以使用：
+
+```
+Person *person = [[Person alloc] init];
+
+person.nickname = @"小明";
+
+NSLog(@"%@", person.nickname);
+```
+
+## 关联对象是怎样工作的？
+
+### 1. `objc_setAssociatedObject`
+
+建立关联
+
+将指定的值与目标对象、关联键和内存管理策略关联起来。
+
+### 2. `objc_getAssociatedObject`
+
+读取关联
+
+根据目标对象和关联键，获取之前关联的值。
+
+### 3. `nicknameKey`
+
+标识这份关联数据
+
+用于区分不同的关联数据。这里通过静态变量的地址作为键。
+
+这里的 `OBJC_ASSOCIATION_COPY_NONATOMIC` 表示关联时采用类似 `copy` 属性的复制语义，并且不提供原子性保证。
+
+关联对象并不是给 `Person` 的实例布局真正添加了一个 `nickname` 实例变量。它是 Runtime 提供的另一种关联存储机制。
+
+还需要注意，关联对象通常会随目标对象的生命周期进行清理，但如果关联值又强引用目标对象，就可能形成循环引用。
+
+# 五、多个 Category 实现同名方法，会发生什么？
+
+这是 Category 与 Runtime 关系中另一个非常重要的知识点。
+
+假设原类实现了：
+
+```
+@implementation Person
+
+- (void)eat {
+    NSLog(@"Person 原本的 eat");
+}
+
+@end
+```
+
+现在有两个分类。
+
+分类 A：
+
+```
+@implementation Person (A)
+
+- (void)eat {
+    NSLog(@"Category A 的 eat");
+}
+
+@end
+```
+
+分类 B：
+
+```
+@implementation Person (B)
+
+- (void)eat {
+    NSLog(@"Category B 的 eat");
+}
+
+@end
+```
+
+调用：
+
+```
+Person *person = [[Person alloc] init];
+[person eat];
+```
+
+到底会执行哪一个？
+
+不能简单地认为“分类一定覆盖原类”，也不能保证某个特定分类永远优先。
+
+当多个分类为同一个类提供同名方法时，实际调用结果可能与分类的加载、方法列表的组织以及具体 Runtime 实现有关。
+
+在常见的 Apple Runtime 行为中，分类方法会参与所属类的方法查找；多个分类存在同名方法时，后加入查找顺序的实现可能优先被找到。但具体顺序不应当作为可靠的业务逻辑依赖。
+
+因此，不建议用多个分类中的同名方法来设计程序行为。
+
+## 如果我确实想调用原来的实现呢？
+
+这就引出了一个后续主题：Method Swizzling（方法交换）。
+
+它通过 Runtime 提供的接口交换两个方法的实现入口，使方法派发到不同的实现上。
+
+不过，方法交换和 Category 中同名方法的加载顺序不是同一件事。我们后续会单独讲解，避免把两者混在一起。
+
+# 六、把今天的知识与前面的 Runtime 主线连接起来
+
+你现在可以把 Category 放回之前学习的整体框架：
+
+类与元数据
+
+`isa`、`superclass`、方法列表和类对象描述类的结构与方法信息。
+
+消息派发
+
+`objc_msgSend` 根据接收者和选择子查找并执行实现。
+
+Category
+
+分类为已有类提供额外方法，并通过 Runtime 参与方法派发。
+
+Associated Objects
+
+利用 Runtime 为已有对象关联额外数据，而不是直接改变实例变量布局。
+
+接下来最自然的学习顺序是 Method Swizzling（方法交换）。学完之后，再把 Category、关联对象、方法替换与消息派发整合起来，你对 Objective-C Runtime 的整体机制就会更完整。
+
+
+
+
+
