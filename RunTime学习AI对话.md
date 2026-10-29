@@ -4894,3 +4894,366 @@ getter / setter
 它们都围绕同一个核心问题展开：Objective-C 对象、类、方法和消息之间的关系，如何由 Runtime 在运行时管理。
 
 下一节适合学习 Runtime 的属性与实例变量相关 API，例如 `class_copyPropertyList`、`class_copyIvarList`、`class_getInstanceVariable`。这样你就能进一步理解：Runtime 如何读取类的属性元数据、实例变量元数据，以及它们与实际对象内存布局之间的区别。
+
+
+
+
+
+
+
+我们继续学习 Objective-C Runtime。上一节讲了关联对象，这一节学习 Runtime 如何获取类的属性、实例变量和方法等元数据。
+
+这部分很重要，因为它会把你之前学过的 `Class`、`Method`、`IMP` 和对象内存布局连接起来。
+
+# 一、先区分三个概念：属性、实例变量、方法
+
+先看一个类：
+
+```
+@interface Person : NSObject {
+    NSInteger _age;
+}
+
+@property (nonatomic, copy) NSString *name;
+
+- (void)eat;
+
+@end
+```
+
+这里有三个不同的概念。
+
+### 1. 属性 Property
+
+`name` 是属性，描述对象具有一个名为 `name` 的属性接口。
+
+Runtime API：`class_copyPropertyList`
+
+### 2. 实例变量 Ivar
+
+`_age` 是实例变量，用于在对象实例中存储数据。
+
+Runtime API：`class_copyIvarList`
+
+### 3. 方法 Method
+
+`eat` 是实例方法，描述对象可以响应的一种消息。
+
+Runtime API：`class_copyMethodList`
+
+它们之间有关联，但不能画等号。
+
+例如，普通类中的 `@property name` 通常会由编译器自动合成实例变量和 getter、setter；但 Category 中声明属性，并不会自动合成这些内容。
+
+因此，理解 Runtime 元数据时，必须分清楚：属性描述、实际存储、方法实现是三个不同层面。
+
+# 二、获取类的属性列表：`class_copyPropertyList`
+
+先看这个 API：
+
+```
+objc_property_t *class_copyPropertyList(
+    Class cls,
+    unsigned int *outCount
+);
+```
+
+它的作用是获取指定类自己声明的属性列表。
+
+例如：
+
+```
+#import <objc/runtime.h>
+
+unsigned int count = 0;
+
+objc_property_t *properties =
+    class_copyPropertyList(Person.class, &count);
+
+for (unsigned int i = 0; i < count; i++) {
+    objc_property_t property = properties[i];
+
+    const char *name = property_getName(property);
+
+    NSLog(@"属性名称：%s", name);
+}
+
+free(properties);
+```
+
+假设 `Person` 声明了 `name` 属性，输出可能是：
+
+```
+属性名称：name
+```
+
+这里有几个需要理解的细节。
+
+### 1. `objc_property_t` 是什么？
+
+它是 Runtime 用来表示属性元数据的类型。
+
+你可以把它理解成一个属性描述对象，通过相应的 API 可以获取属性名、属性特征等信息。
+
+例如：
+
+```
+const char *name = property_getName(property);
+```
+
+获取属性名称。
+
+而：
+
+```
+const char *attributes = property_getAttributes(property);
+```
+
+获取属性的特征字符串。
+
+### 2. `outCount` 是什么？
+
+`outCount` 是输出参数，用于接收返回的属性数量。
+
+例如，假设类有两个属性：
+
+```
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic, assign) NSInteger age;
+```
+
+那么 `count` 通常就是 `2`。
+
+### 3. 为什么要调用 `free`？
+
+`class_copyPropertyList` 返回的是需要由调用者释放的动态分配数组。
+
+所以遍历完成后，需要：
+
+```
+free(properties);
+```
+
+这释放的是属性列表数组的内存，不是 `Person` 对象，也不是属性本身。
+
+还有一个非常重要的细节：
+
+`class_copyPropertyList` 不会自动递归获取父类的属性。
+
+如果 `Student : Person`，调用：
+
+```
+class_copyPropertyList(Student.class, &count);
+```
+
+获取的是 `Student` 自己声明的属性，而不是 `Person` 的全部属性。
+
+如果想收集整个继承链上的属性，就需要从子类开始，逐级遍历 `class_getSuperclass`。
+
+# 三、获取实例变量列表：`class_copyIvarList`
+
+接下来是实例变量。
+
+```
+Ivar *class_copyIvarList(
+    Class cls,
+    unsigned int *outCount
+);
+```
+
+这个 API 获取指定类自己声明的实例变量。
+
+例如：
+
+```
+unsigned int count = 0;
+
+Ivar *ivars = class_copyIvarList(Person.class, &count);
+
+for (unsigned int i = 0; i < count; i++) {
+    Ivar ivar = ivars[i];
+
+    const char *name = ivar_getName(ivar);
+    const char *type = ivar_getTypeEncoding(ivar);
+
+    NSLog(@"变量名：%s，类型编码：%s", name, type);
+}
+
+free(ivars);
+```
+
+如果 `Person` 中有：
+
+```
+@interface Person : NSObject {
+    NSInteger _age;
+}
+@end
+```
+
+那么获取到的实例变量列表中会包含 `_age`。
+
+`ivar_getName` 获取变量名，`ivar_getTypeEncoding` 获取类型编码。
+
+需要注意，实际类型编码与具体类型和平台有关，不应把所有类型编码都当成普通字符串名称。
+
+## 属性和实例变量为什么不能混淆？
+
+例如：
+
+```
+@property (nonatomic, copy) NSString *name;
+```
+
+在普通 Objective-C 类的自动合成机制下，编译器通常会生成一个对应的实例变量，常见名称是 `_name`。
+
+但：
+
++ 属性名是 `name`。
++ 实例变量名通常是 `_name`。
++ getter 是 `name`。
++ setter 是 `setName:`。
+
+这是不同的元数据。
+
+另外，`class_copyIvarList` 同样只获取指定类自己声明的实例变量，不会自动把父类的实例变量一起列出来。
+
+# 四、获取方法列表：`class_copyMethodList`
+
+你已经学过 `Method` 和 `IMP`，现在把它们放进实际代码里。
+
+```
+Method *methods = class_copyMethodList(Person.class, &count);
+
+for (unsigned int i = 0; i < count; i++) {
+    Method method = methods[i];
+
+    SEL selector = method_getName(method);
+
+    NSLog(@"方法名称：%@",
+          NSStringFromSelector(selector));
+}
+
+free(methods);
+```
+
+假设 `Person` 自己实现了 `eat`，并且编译器为 `name` 合成了 getter 和 setter，那么方法列表中可能包含：
+
++ `eat`
++ `name`
++ `setName:`
+
+这里的重点是：属性和方法列表不是同一份列表。
+
+`name` 作为属性可以出现在属性列表中，而它对应的 getter、setter 又可以出现在方法列表中。
+
+还要注意，`class_copyMethodList` 获取的是指定类自己直接实现的方法列表，不会自动包含父类的方法。
+
+例如，`Student` 继承 `Person`，但没有实现 `eat`：
+
+```
+Student *student = [[Student alloc] init];
+[student eat];
+```
+
+即使调用成功，`eat` 也不一定出现在 `Student` 自己的方法列表中，因为它可能是从 `Person` 继承来的。
+
+这与你之前学过的消息查找机制完全一致：一个对象能够调用的方法，不等于它所属类自己实现的方法。
+
+# 五、三个 API 的区别
+
+| API                      | 获取内容       | 是否自动包含父类 |
+| ------------------------ | -------------- | ---------------- |
+| `class_copyPropertyList` | 属性元数据     | 否               |
+| `class_copyIvarList`     | 实例变量元数据 | 否               |
+| `class_copyMethodList`   | 方法列表       | 否               |
+
+如果你想知道一个子类能够使用哪些继承方法，就不能只依赖 `class_copyMethodList`。
+
+需要结合：
+
+```
+Class superclass = class_getSuperclass(Student.class);
+```
+
+沿着 `superclass` 逐级查找。
+
+概念上可以理解成：
+
+Student 类
+
+自己的属性、实例变量、方法
+
+class_getSuperclass
+
+Person 类
+
+父类自己的属性、实例变量、方法
+
+NSObject 类
+
+不过，继承链上的方法查找与属性、实例变量的枚举是不同的问题，不能认为三种 `class_copy...List` 都会像消息查找一样自动沿着父类链遍历。
+
+# 六、再深入一点：获取某个指定实例变量
+
+前面讲的是获取整个列表。
+
+如果你只想获取一个实例变量，可以使用：
+
+```
+Ivar ivar = class_getInstanceVariable(Person.class, "_age");
+```
+
+它的作用是根据类和实例变量名获取对应的 `Ivar`。
+
+与 `class_copyIvarList` 不同，`class_getInstanceVariable` 会沿继承链查找，因此可以获取类自身或其父类中声明的实例变量。
+
+获得 `Ivar` 后，还可以读取：
+
+```
+const char *name = ivar_getName(ivar);
+```
+
+获取变量名，或者：
+
+```
+ptrdiff_t offset = ivar_getOffset(ivar);
+```
+
+获取实例变量相对于对象实例起始位置的偏移量。
+
+这里需要注意：偏移量是 Runtime 元数据中的布局信息，并不意味着你应该在业务代码中随意通过指针运算修改对象内部内存。对象布局、内存管理和访问权限都有相应约束。
+
+# 七、把本节放回 Runtime 的主线
+
+现在可以把 Runtime 的几个核心层次进一步连起来：
+
+Class 类对象
+
+### 属性元数据
+
+```
+objc_property_t
+```
+
+属性名、属性特征
+
+### 实例变量元数据
+
+```
+Ivar
+```
+
+变量名、类型、偏移量
+
+### 方法元数据
+
+```
+Method` → `IMP
+```
+
+方法选择器、类型信息、实现入口
+
+这几个 API 是观察 Runtime 元数据的工具。它们帮助你了解类声明了什么，但读取到元数据不等于直接读取了属性的实际值，也不等于修改了对象的内存布局。
+
+下一节可以继续学习 `class_getInstanceSize`、`class_getInstanceVariable` 和对象内存布局之间的关系，进一步理解 `isa`、实例变量偏移量与对象实际占用空间之间的联系。
