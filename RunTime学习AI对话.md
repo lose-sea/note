@@ -3768,3 +3768,1129 @@ Associated Objects
 利用 Runtime 为已有对象关联额外数据，而不是直接改变实例变量布局。
 
 接下来最自然的学习顺序是 Method Swizzling（方法交换）。学完之后，再把 Category、关联对象、方法替换与消息派发整合起来，你对 Objective-C Runtime 的整体机制就会更完整。
+
+
+
+
+
+
+
+我们继续学习 Objective-C Runtime。上一节讲了 Category 和关联对象，今天进入下一个知识点：Method Swizzling（方法交换）。
+
+这部分会把你之前学过的 `Method`、`IMP`、Category 和 `objc_msgSend` 真正联系起来。
+
+# 一、Method Swizzling 是什么？
+
+Method Swizzling，通常翻译为“方法交换”，是指在运行时交换两个方法的实现。
+
+先看一个普通的 `Person` 类：
+
+```
+@interface Person : NSObject
+- (void)eat;
+- (void)run;
+@end
+
+@implementation Person
+
+- (void)eat {
+    NSLog(@"正在吃饭");
+}
+
+- (void)run {
+    NSLog(@"正在跑步");
+}
+
+@end
+```
+
+正常情况下：
+
+```
+Person *person = [[Person alloc] init];
+
+[person eat]; // 正在吃饭
+[person run]; // 正在跑步
+```
+
+假设我们希望调用 `eat` 时执行原来的 `run` 实现，而调用 `run` 时执行原来的 `eat` 实现。
+
+方法交换就可以改变这两个方法与实现代码之间的对应关系。
+
+## 先回忆三个概念
+
+| 概念     | 含义                       |
+| -------- | -------------------------- |
+| `SEL`    | 方法选择子，标识一个方法   |
+| `Method` | Runtime 中描述方法的元数据 |
+| `IMP`    | 方法实现的入口             |
+
+例如，原本可以把方法关系理解为：
+
+```
+eat
+```
+
+`eat` 的实现
+
+```
+run
+```
+
+`run` 的实现
+
+交换之后，概念上变成：
+
+```
+eat
+```
+
+`run` 的实现
+
+```
+run
+```
+
+`eat` 的实现
+
+这里最重要的理解是：
+
+方法交换改变的是方法与实现之间的对应关系，而不是把两个方法的名字改掉。
+
+# 二、Runtime 如何交换方法？
+
+Objective-C Runtime 提供了相关 API：
+
+```
+#import <objc/runtime.h>
+
+Method method1 = class_getInstanceMethod(Person.class,
+                                         @selector(eat));
+
+Method method2 = class_getInstanceMethod(Person.class,
+                                         @selector(run));
+
+method_exchangeImplementations(method1, method2);
+```
+
+核心 API 是：
+
+```
+method_exchangeImplementations(method1, method2);
+```
+
+它交换两个 `Method` 对应的实现。
+
+交换后：
+
+```
+Person *person = [[Person alloc] init];
+
+[person eat]; // 正在跑步
+[person run]; // 正在吃饭
+```
+
+为什么调用结果变了？
+
+因为消息发送时，`objc_msgSend` 仍然根据接收者和选择子查找方法，只不过方法对应的实现已经被交换了。
+
+也就是说：
+
++ `[person eat]` 发送的选择子依然是 `eat`。
++ Runtime 找到的仍然是 `eat` 对应的方法入口。
++ 但该方法现在关联的是原本 `run` 的实现。
+
+这就是方法交换和消息派发之间的联系。
+
+# 三、为什么实际项目中经常结合 Category 使用？
+
+实际开发中，我们通常不希望为了修改 `Person` 的行为而直接改动原类源码。
+
+这时可以创建一个 Category，并在合适的时机执行方法交换。
+
+例如，希望给 `Person` 的 `eat` 方法增加日志，同时保留原来的功能。
+
+可以创建 `Person+Logging` 分类。
+
+```
+#import "Person.h"
+#import <objc/runtime.h>
+
+@implementation Person (Logging)
+
++ (void)load {
+    Method originalMethod =
+        class_getInstanceMethod(self, @selector(eat));
+
+    Method customMethod =
+        class_getInstanceMethod(self, @selector(logging_eat));
+
+    if (originalMethod && customMethod) {
+        method_exchangeImplementations(originalMethod,
+                                       customMethod);
+    }
+}
+
+- (void)logging_eat {
+    NSLog(@"开始调用 eat");
+
+    [self logging_eat];
+
+    NSLog(@"结束调用 eat");
+}
+
+@end
+```
+
+这里有一个容易让初学者困惑的地方：
+
+```
+[self logging_eat];
+```
+
+看起来像是调用自己，为什么不会无限递归？
+
+因为在方法交换之前：
+
++ `eat` 对应原来的吃饭实现。
++ `logging_eat` 对应分类中的日志实现。
+
+交换之后：
+
++ `eat` 对应分类中的日志实现。
++ `logging_eat` 对应原来的吃饭实现。
+
+因此，执行 `eat` 时会进入 `logging_eat`，然后执行 `[self logging_eat]` 时，会调用交换后挂在 `logging_eat` 这个选择子上的原始 `eat` 实现。
+
+最终的输出大致是：
+
+```
+开始调用 eat
+正在吃饭
+结束调用 eat
+```
+
+这是一种常见的“包装原方法”的思路。
+
+## `+load` 是什么？
+
+上面的代码使用：
+
+```
++ (void)load
+```
+
+`load` 是 Objective-C Runtime 的类和分类加载机制之一。类及其分类的 `load` 方法会在程序启动时的加载阶段被调用，通常早于应用进入正常运行流程。
+
+它经常被用于演示方法交换，因为交换可以在普通业务代码开始调用相关方法之前完成。
+
+不过，实际工程中要谨慎使用：
+
++ 避免多个分类重复交换同一个方法。
++ 避免不同组件之间产生难以预测的行为冲突。
++ 不要把方法交换当作普通业务逻辑的默认实现方式。
+
+# 四、这里有一个重要陷阱：父类方法与 `class_getInstanceMethod`
+
+前面的方法交换示例为了突出原理，假设两个方法都由 `Person` 自己实现。
+
+但实际项目中，有时会遇到：
+
+```
+Method method = class_getInstanceMethod(Person.class,
+                                        @selector(description));
+```
+
+`description` 可能是从父类继承来的。
+
+`class_getInstanceMethod` 不仅可以获取类自己实现的实例方法，也可以沿继承关系找到继承的方法。
+
+因此，拿到一个 `Method`，不代表这个方法一定属于当前类本身。
+
+如果直接交换继承来的方法实现，可能影响到父类或其他子类的行为，具体取决于方法列表和 Runtime 的处理方式。
+
+所以，在实际交换之前，需要弄清楚：
+
+1. 方法是否由当前类直接实现。
+2. 是否会影响父类和其他子类。
+3. 交换是否可能与其他 Category 或第三方库冲突。
+
+这些问题比记住一行交换 API 更重要。
+
+# 五、方法交换与动态方法解析有什么区别？
+
+你之前学习过动态方法解析，现在把它们放在一起比较。
+
+| 对比                     | 动态方法解析                 | Method Swizzling                 |
+| ------------------------ | ---------------------------- | -------------------------------- |
+| 主要目的                 | 为无法找到的方法动态提供实现 | 交换两个已有方法的实现           |
+| 常见 API                 | `class_addMethod`            | `method_exchangeImplementations` |
+| 是否一定需要已有两个方法 | 不需要                       | 通常需要两个可交换的方法实现     |
+| 典型用途                 | 动态补充方法                 | 日志、埋点、行为拦截等           |
+| 与消息派发的关系         | 影响后续是否能找到方法       | 改变找到方法后执行的实现         |
+
+这两个机制都属于 Runtime 提供的动态能力，但解决的是不同问题。
+
+# 六、把今天的内容接回 Runtime 主线
+
+你现在已经接触了 Runtime 的几项重要能力：
+
++ 消息派发： 根据接收者、选择子和类的元数据找到实现。
++ 动态方法解析： 在方法查找失败时，尝试补充实现。
++ 消息转发： 在常规查找无法解决时，为消息寻找其他处理方式。
++ Category： 为已有类提供额外方法。
++ 关联对象： 将额外数据关联到对象。
++ Method Swizzling： 在运行时交换方法实现。
+
+这些知识不是彼此孤立的。它们都围绕同一个核心：Objective-C 的方法调用不是简单地把方法名直接绑定到固定代码，而是通过 Runtime 的类信息、方法元数据和消息派发机制来完成。
+
+下一步适合学习 `class_addMethod`、`class_replaceMethod`、`method_setImplementation` 这几个 API 的区别。它们可以帮助你进一步理解：动态添加方法、替换方法实现、交换方法实现，到底是三种什么不同的操作。
+
+ 我们继续学习 Objective-C Runtime。上一节讲了 Method Swizzling（方法交换），这节把三个经常一起出现的 Runtime API 串起来：
+
++ `class_addMethod`
++ `class_replaceMethod`
++ `method_setImplementation`
+
+它们都能影响方法的实现，但操作对象和适用场景不同。
+
+## 一、先理解三个 API 的区别
+
+| API                        | 作用                         | 能否添加方法         | 能否替换实现             |
+| -------------------------- | ---------------------------- | -------------------- | ------------------------ |
+| `class_addMethod`          | 向指定类添加方法             | 可以                 | 不替换该类已有的同名方法 |
+| `class_replaceMethod`      | 替换指定类的方法实现         | 方法不存在时可以添加 | 可以                     |
+| `method_setImplementation` | 修改已有 `Method` 的实现指针 | 不可以               | 可以                     |
+
+先记住这三个关键词：
+
++ `class_addMethod`：添加
++ `class_replaceMethod`：按类和方法名替换
++ `method_setImplementation`：直接修改 Method 的 IMP
+
+要真正理解它们，还需要知道一个重要概念：方法是自己定义的，还是从父类继承的。
+
+## 二、理解 `class_addMethod`
+
+### 1. 它的作用
+
+```
+class_addMethod(Class cls,
+                SEL name,
+                IMP imp,
+                const char *types);
+```
+
+四个参数分别是：
+
++ `cls`：要添加方法的目标类。
++ `name`：方法选择器，例如 `@selector(eat)`。
++ `imp`：方法对应的实现函数。
++ `types`：方法类型编码，例如 `"v@:"`。
+
+返回值是 `BOOL`：
+
++ `YES`：添加成功。
++ `NO`：添加失败，例如目标类已经直接拥有这个方法。
+
+注意：这里检查的是目标类自己的方法列表，而不只是这个类能不能响应该方法。
+
+### 2. 一个典型例子：子类继承了父类的方法
+
+```
+@interface Person : NSObject
+- (void)eat;
+@end
+
+@implementation Person
+- (void)eat {
+    NSLog(@"Person 正在吃饭");
+}
+@end
+
+@interface Student : Person
+@end
+
+@implementation Student
+@end
+```
+
+此时，`Student` 没有自己实现 `eat`，但它继承了 `Person` 的 `eat`。
+
+所以：
+
+```
+Student *student = [[Student alloc] init];
+[student eat];
+```
+
+输出：
+
+```
+Person 正在吃饭
+```
+
+现在，我们使用 Runtime 为 `Student` 添加一个自己的 `eat` 方法。
+
+```
+#import <objc/runtime.h>
+
+static void studentEat(id self, SEL _cmd) {
+    NSLog(@"Student 正在吃饭");
+}
+
+// 在某处执行
+class_addMethod(Student.class,
+                @selector(eat),
+                (IMP)studentEat,
+                "v@:");
+```
+
+执行成功后：
+
+```
+Student *student = [[Student alloc] init];
+[student eat];
+```
+
+输出变为：
+
+```
+Student 正在吃饭
+```
+
+而 `Person` 的方法没有被修改：
+
+```
+Person *person = [[Person alloc] init];
+[person eat];
+```
+
+仍然输出：
+
+```
+Person 正在吃饭
+```
+
+这里发生了什么？
+
+Student 类
+
+新增自己的 eat 方法
+
+Student 原本继承 Person 的 eat，现在优先找到自己的实现
+
+Person 类
+
+原有 eat 方法保持不变
+
+这正是 `class_addMethod` 一个很重要的用途：给子类添加一个方法实现，从而覆盖它继承来的方法，而不直接修改父类。
+
+这里的“覆盖”并不是传统意义上编译时写出的 `override`，而是通过 Runtime 动态地向子类添加方法。
+
+## 三、理解 `class_replaceMethod`
+
+它的声明是：
+
+```
+class_replaceMethod(Class cls,
+                    SEL name,
+                    IMP imp,
+                    const char *types);
+```
+
+它和 `class_addMethod` 最大的区别是：如果目标类已经有这个方法，`class_replaceMethod` 会替换它的实现；如果目标类没有自己的这个方法，则会在该类添加方法。
+
+继续使用刚才的 `Person` 和 `Student`。
+
+假设我们想替换 `Person` 自己的 `eat` 实现：
+
+```
+static void newPersonEat(id self, SEL _cmd) {
+    NSLog(@"新的 Person 吃饭实现");
+}
+
+class_replaceMethod(Person.class,
+                    @selector(eat),
+                    (IMP)newPersonEat,
+                    "v@:");
+```
+
+之后：
+
+```
+Person *person = [[Person alloc] init];
+[person eat];
+```
+
+输出：
+
+```
+新的 Person 吃饭实现
+```
+
+因为 `Student` 没有自己的 `eat`，它继承的是 `Person` 的方法，所以在没有其他覆盖的情况下，`Student` 调用 `eat` 也会使用新的实现。
+
+但如果目标是 `Student`：
+
+```
+class_replaceMethod(Student.class,
+                    @selector(eat),
+                    (IMP)studentEat,
+                    "v@:");
+```
+
+由于 `Student` 没有自己的 `eat`，Runtime 会为 `Student` 添加自己的实现，而不是直接替换 `Person` 的方法。
+
+因此要区分两件事：
+
++ 替换父类自己的方法：影响父类，以及依赖该实现的子类。
++ 在子类上替换一个继承来的方法：实际上是在子类建立自己的实现，不直接改动父类。
+
+这也是为什么 Runtime 操作继承方法时，必须弄清楚目标类和方法的归属。
+
+## 四、理解 `method_setImplementation`
+
+它的声明是：
+
+```
+IMP method_setImplementation(Method m, IMP imp);
+```
+
+前两个 API 接收的是 `Class` 和 `SEL`，而这个 API 接收的是一个已经取得的 `Method` 对象。
+
+例如：
+
+```
+Method method = class_getInstanceMethod(Person.class,
+                                        @selector(eat));
+
+IMP oldIMP = method_setImplementation(method,
+                                      (IMP)newPersonEat);
+```
+
+这里：
+
++ `class_getInstanceMethod`：取得实例方法对应的 `Method`。
++ `method_setImplementation`：将这个 `Method` 的实现改为 `newPersonEat`。
++ `oldIMP`：返回修改之前的实现指针。
+
+注意，`class_getInstanceMethod` 也可能返回从父类继承来的方法。因此，如果你对继承的方法直接调用 `method_setImplementation`，可能影响父类共享的那个方法实现，而不只是子类。具体操作时必须谨慎。
+
+另外，`method_setImplementation` 不负责创建一个新方法。它要求你已经拿到了对应的 `Method`。
+
+## 五、这三个 API 和 Method Swizzling 有什么关系？
+
+你已经学过：
+
+```
+method_exchangeImplementations(method1, method2);
+```
+
+它的目的，是交换两个方法的实现。
+
+现在可以把四个 API 放在同一张图里理解：
+
+### `class_addMethod`
+
+目标类的方法列表中没有该方法时，添加一个方法实现。
+
+### `class_replaceMethod`
+
+通过目标类和选择器定位方法，替换实现；目标类没有自己的方法时则添加。
+
+### `method_setImplementation`
+
+已经有 Method 对象，直接修改它对应的实现。
+
+### `method_exchangeImplementations`
+
+将两个方法的实现互换，常见于 Method Swizzling。
+
+它们的共同点是都涉及 `IMP`，但不能简单理解成四个完全等价的替换工具：前三个关注添加或设置实现，最后一个关注两个实现之间的交换。
+
+## 六、把它们放回 Runtime 的主线
+
+你目前学过的内容可以这样串起来：
+
+发送消息
+
+```
+[student eat]
+```
+
+方法查找
+
+查找类的方法列表、缓存和父类链
+
+找到了 Method 和对应的 IMP
+
+执行对应实现
+
+Runtime 动态修改
+
+添加方法、替换 IMP、交换 IMP
+
+核心关系是：消息发送决定要查找哪个方法；方法查找决定使用哪个实现；Runtime API 可以在运行期间改变类的方法表或方法实现，从而影响后续的消息调用。
+
+还有一个细节值得记住：`SEL` 只是方法的选择器标识，`Method` 是运行时方法元数据，`IMP` 才是实际执行的实现入口。调用这些 API 时，它们扮演的是不同角色。
+
+下一步可以继续学习 Runtime 中的 Category 底层机制：分类的方法是怎样进入类的方法查找体系的，以及为什么多个 Category 实现同名方法时会产生冲突。这会把你之前学过的 Category、方法列表和方法查找真正连接起来。
+
+
+
+
+
+
+
+我们继续 Runtime。上一节学了 `class_addMethod`、`class_replaceMethod`、`method_setImplementation`，接下来学习 Category（分类）的底层机制：分类的方法是怎样参与类的方法查找的。
+
+这一节会把你之前学过的几个知识点串起来：类对象、方法列表、继承链、IMP，以及方法交换。
+
+## 一、先回顾 Category 能做什么
+
+假设你有一个 `Person` 类：
+
+```
+@interface Person : NSObject
+- (void)eat;
+@end
+
+@implementation Person
+
+- (void)eat {
+    NSLog(@"Person eat");
+}
+
+@end
+```
+
+现在想给 `Person` 增加一个 `run` 方法，但暂时不想修改原来的 `Person.m`。
+
+可以使用 Category：
+
+```
+@interface Person (Sport)
+- (void)run;
+@end
+
+@implementation Person (Sport)
+
+- (void)run {
+    NSLog(@"Person run");
+}
+
+@end
+```
+
+调用时：
+
+```
+Person *person = [[Person alloc] init];
+[person run];
+```
+
+输出：
+
+```
+Person run
+```
+
+这里有个关键问题：`run` 明明写在 `Person (Sport)` 分类里，为什么 `Person` 对象可以直接调用它？
+
+答案是：Category 的方法会被 Objective-C Runtime 纳入相应类的方法查找体系。
+
+但是，理解这一点还不够。我们需要进一步区分：分类和原始类的方法，到底是怎样组织起来的。
+
+## 二、Category 并不是创建了一个新类
+
+先纠正一个容易出现的误解。
+
+写下：
+
+```
+@implementation Person (Sport)
+```
+
+并不会创建一个叫作 `Sport` 的新类，也不会创建一个 `PersonSport` 子类。
+
+实际上：
+
++ `Person` 仍然是原来的类。
++ `Sport` 是分类的名称。
++ 分类为 `Person` 增加方法等运行时元数据。
++ `Person` 的实例仍然是 `Person` 对象，`isa` 仍然指向 `Person` 类对象。
+
+因此，分类与继承的区别是：
+
+继承：创建新的子类
+
+`Student` 类
+
+superclass 指向
+
+`Person` 类
+
+分类：扩展现有类
+
+`Person` 原始实现
+
+`Person (Sport)` 分类提供的方法
+
+分类不是新的类对象，也没有独立的实例继承链。
+
+这里要注意：分类通常可以增加方法，但不能直接给已有类增加实例变量。分类中声明 `@property` 也不会自动生成对应的实例变量和存取方法。
+
+## 三、Runtime 如何找到分类中的方法？
+
+这是本节最重要的内容。
+
+先看原始类和分类分别实现了不同的方法：
+
+```
+@implementation Person
+
+- (void)eat {
+    NSLog(@"原始类的 eat");
+}
+
+@end
+```
+
+分类中：
+
+```
+@implementation Person (Sport)
+
+- (void)run {
+    NSLog(@"分类的 run");
+}
+
+@end
+```
+
+从概念上理解，Runtime 需要能够找到这两处实现的方法元数据：
+
++ 原始类提供的 `eat`。
++ 分类提供的 `run`。
+
+当执行：
+
+```
+[person eat];
+[person run];
+```
+
+Runtime 都能根据相应的选择器找到方法实现，再通过对应的 `IMP` 执行代码。
+
+但要注意：分类的方法元数据并不意味着编译器把分类的源码直接合并进了原始 `Person.m` 文件。
+
+编译阶段，分类通常会形成独立的运行时元数据；程序启动和类加载过程中，Runtime 会处理这些元数据，使分类方法参与对应类的方法查找。
+
+具体内部数据结构和加载细节会随 Objective-C Runtime 的实现版本而有所不同。学习时先抓住这个稳定的概念：分类的方法最终能够通过原有类的消息发送机制被查找到。
+
+## 四、多个 Category 都实现同一个方法，会发生什么？
+
+现在进入一个非常重要的场景。
+
+原始类：
+
+```
+@implementation Person
+
+- (void)eat {
+    NSLog(@"原始类 eat");
+}
+
+@end
+```
+
+分类 A：
+
+```
+@implementation Person (A)
+
+- (void)eat {
+    NSLog(@"分类 A eat");
+}
+
+@end
+```
+
+分类 B：
+
+```
+@implementation Person (B)
+
+- (void)eat {
+    NSLog(@"分类 B eat");
+}
+
+@end
+```
+
+现在，三个地方都实现了同一个选择器 `eat`。
+
+这意味着它们都提供了一个名为 `eat` 的方法实现，但一次普通的：
+
+```
+[person eat];
+```
+
+不会依次调用三个实现，而是只会根据 Runtime 最终采用的方法查找结果调用一个实现。
+
+不要依赖分类之间同名方法的固定优先级。 实际结果可能受到分类加载顺序、链接配置及 Runtime 实现细节等因素影响。
+
+如果多个分类都定义同名方法，可能造成原有实现被遮蔽，程序行为也会难以预测。
+
+这就是为什么我们应该避免随意在多个 Category 中重写同一个选择器。
+
+## 五、Category 和 Method Swizzling 是怎样联系起来的？
+
+你之前学过 Method Swizzling，它通常会在分类中实现一个包装方法，再把包装方法与原方法的 `IMP` 交换。
+
+例如：
+
+```
+@implementation Person (Logging)
+
+- (void)logging_eat {
+    NSLog(@"开始吃饭");
+
+    [self logging_eat];
+
+    NSLog(@"结束吃饭");
+}
+
+@end
+```
+
+单看这段代码，`[self logging_eat]` 会再次调用 `logging_eat`，看起来似乎会无限递归。
+
+但是在正确执行方法交换后：
+
++ `eat` 对应包装方法的 `IMP`。
++ `logging_eat` 对应原始 `eat` 的 `IMP`。
+
+因此，包装方法内部调用 `[self logging_eat]` 时，实际上会进入原始的吃饭实现，而不是再次进入包装方法。
+
+这也说明了一个核心区别：
+
++ Category：提供分类方法，让这些方法参与类的方法查找。
++ Method Swizzling：交换方法实现，让某个选择器最终调用另一个实现。
+
+分类经常被用来组织 Swizzling 代码，但分类本身并不等于方法交换。
+
+## 六、把 Category 放回 Runtime 的整体主线
+
+你现在可以把这几个知识点连成一条完整的逻辑链：
+
+Category 提供方法
+
+Runtime 处理分类元数据
+
+使分类方法参与类的方法查找体系
+
+发送消息并查找方法
+
+根据 SEL 查找可用实现
+
+调用 IMP
+
+执行最终找到的方法实现
+
+你之前学习的 `class_addMethod`、`class_replaceMethod` 和 `method_setImplementation`，也都可以放在这条主线上理解：它们从不同角度影响方法的可用性或实现。
+
+下一节建议学习：Category 为什么不能直接添加实例变量，以及关联对象（Associated Objects）如何弥补这个限制。 这会进一步解释 `objc_setAssociatedObject`、`objc_getAssociatedObject` 的用途，并与之前学过的 Category 知识衔接起来。
+
+
+
+
+
+我们继续学习 Objective-C Runtime。上一节讲了 Category 的方法如何参与 Runtime 的方法查找，这一节继续下一个知识点：关联对象（Associated Objects）。
+
+它主要解决一个问题：不能直接在 Category 中添加实例变量，但有时又希望给已有类的对象附加额外的数据，怎么办？
+
+## 一、为什么 Category 不能直接添加实例变量？
+
+假设你有一个已经写好的 `Person` 类：
+
+```
+@interface Person : NSObject
+
+@property (nonatomic, copy) NSString *name;
+
+@end
+```
+
+现在，你想通过分类给 `Person` 增加一个 `age` 属性：
+
+```
+@interface Person (Info)
+
+@property (nonatomic, assign) NSInteger age;
+
+@end
+```
+
+这段代码可以通过编译，但它不会自动生成 `age` 对应的实例变量，也不会自动生成可用的 getter 和 setter 实现。
+
+例如，下面这样直接调用，通常会因为缺少对应方法实现而导致运行时异常：
+
+```
+Person *person = [[Person alloc] init];
+person.age = 18;
+```
+
+为什么？
+
+先回忆一下普通类中的属性：
+
+```
+@interface Person : NSObject
+@property (nonatomic, copy) NSString *name;
+@end
+```
+
+在常规的 `@implementation Person` 中，编译器通常会为 `name` 自动合成存取方法，并为实例存储安排相应的实例变量。
+
+但是 Category 是对已有类的扩展。它不能像定义新类那样，改变已有实例的内存布局，直接给每个对象增加一个新的实例变量。
+
+因此，Category 中声明 `@property`，本身并不等于实现属性。
+
+## 二、关联对象是什么？
+
+Objective-C Runtime 提供了一组关联对象 API，可以把额外的数据与某个对象关联起来。
+
+最常用的是三个：
+
+| API                            | 作用                       |
+| ------------------------------ | -------------------------- |
+| `objc_setAssociatedObject`     | 设置或更新关联数据         |
+| `objc_getAssociatedObject`     | 读取关联数据               |
+| `objc_removeAssociatedObjects` | 移除指定对象的全部关联数据 |
+
+使用前需要导入：
+
+```
+#import <objc/runtime.h>
+```
+
+这里的核心思想是：
+
+不修改对象原本的实例变量布局，而是通过 Runtime 维护额外的对象与数据之间的关联。
+
+可以把它理解成一张逻辑上的映射表：
+
+Person 对象
+
+原本就存在的对象
+
+Runtime 维护关联
+
+关联数据
+
+例如 age = 18
+
+注意，这只是便于理解的概念图，并不意味着 Runtime 内部一定使用一张简单的字典来实现所有关联操作。
+
+## 三、实际实现：给 Category 增加 `age` 属性
+
+我们分成三个步骤：声明属性、实现 getter、实现 setter。
+
+### 第一步：声明 Category
+
+```
+#import <Foundation/Foundation.h>
+
+@interface Person (Info)
+
+@property (nonatomic, assign) NSInteger age;
+
+@end
+```
+
+这里仅声明属性，不会自动生成存取方法。
+
+### 第二步：实现 getter 和 setter
+
+```
+#import "Person+Info.h"
+#import <objc/runtime.h>
+
+@implementation Person (Info)
+
+static char ageKey;
+
+- (void)setAge:(NSInteger)age {
+    objc_setAssociatedObject(self,
+                             &ageKey,
+                             @(age),
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+- (NSInteger)age {
+    NSNumber *number = objc_getAssociatedObject(self, &ageKey);
+    return number.integerValue;
+}
+
+@end
+```
+
+现在逐步理解这段代码。
+
+1. `static char ageKey;`
+
+它用来提供一个唯一的关联标识。
+
+这里使用 `&ageKey`，是因为关联对象 API 接收的是一个 `const void *` 类型的 key。使用静态变量的地址，可以在这个实现文件中稳定地标识 `age` 这项关联数据。
+
+key 不需要真的保存年龄；它只负责区分不同的关联属性。
+
+2. `objc_setAssociatedObject`
+
+```
+objc_setAssociatedObject(self,
+                         &ageKey,
+                         @(age),
+                         OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+```
+
+四个参数分别是：
+
++ `self`：要关联数据的对象。
++ `&ageKey`：关联数据的唯一标识。
++ `@(age)`：将基本整数包装成 `NSNumber` 对象。
++ `OBJC_ASSOCIATION_RETAIN_NONATOMIC`：指定关联对象的内存管理策略。
+
+这里必须包装整数，是因为关联对象存储的 value 是对象类型，而 `NSInteger` 是基本整数类型。
+
+3. `objc_getAssociatedObject`
+
+```
+NSNumber *number = objc_getAssociatedObject(self, &ageKey);
+return number.integerValue;
+```
+
+它使用相同的对象和 key 查找关联值，再将 `NSNumber` 转换回 `NSInteger`。
+
+如果之前没有设置过这个值，读取结果通常是 `nil`，而 `nil.integerValue` 会得到 `0`。
+
+### 第三步：使用这个属性
+
+```
+Person *person = [[Person alloc] init];
+
+person.age = 18;
+
+NSLog(@"%ld", (long)person.age);
+```
+
+输出：
+
+```
+18
+```
+
+这样，`Person` 的分类就拥有了可用的 `age` 存取方法，而且没有直接修改 `Person` 原有的实例变量布局。
+
+## 四、为什么要使用不同的关联 key？
+
+假设一个分类增加两个属性：
+
+```
+@property (nonatomic, copy) NSString *nickname;
+@property (nonatomic, copy) NSString *city;
+```
+
+它们应该使用不同的 key。
+
+例如：
+
+```
+static char nicknameKey;
+static char cityKey;
+```
+
+设置昵称：
+
+```
+objc_setAssociatedObject(self,
+                         &nicknameKey,
+                         nickname,
+                         OBJC_ASSOCIATION_COPY_NONATOMIC);
+```
+
+设置城市：
+
+```
+objc_setAssociatedObject(self,
+                         &cityKey,
+                         city,
+                         OBJC_ASSOCIATION_COPY_NONATOMIC);
+```
+
+如果两个属性误用了相同的 key，那么读取时就无法通过 key 区分它们，后续设置也可能覆盖之前的关联值。
+
+所以要记住：
+
+每一个需要独立存储的关联属性，都应该使用能够稳定区分它的 key。
+
+## 五、关联对象的内存管理策略
+
+`objc_setAssociatedObject` 的最后一个参数决定关联对象的持有方式。
+
+| 策略                                | 含义                                   |
+| ----------------------------------- | -------------------------------------- |
+| `OBJC_ASSOCIATION_ASSIGN`           | 不强持有关联值；不提供可靠的弱引用语义 |
+| `OBJC_ASSOCIATION_RETAIN_NONATOMIC` | 强持有关联值，不提供原子性保证         |
+| `OBJC_ASSOCIATION_COPY_NONATOMIC`   | 复制关联值，不提供原子性保证           |
+| `OBJC_ASSOCIATION_RETAIN`           | 强持有关联值，具有原子性保证           |
+| `OBJC_ASSOCIATION_COPY`             | 复制关联值，具有原子性保证             |
+
+这里有三个容易混淆的地方：
+
++ `RETAIN` 不等于 `COPY`：前者持有传入的对象，后者复制对象。
++ `NONATOMIC` 不等于线程安全：它表示关联操作不提供原子性保证。
++ `ASSIGN` 不等于 `WEAK`：它不会自动提供安全的弱引用清零行为。
+
+对于字符串等不可变类型属性，常见做法是使用 `OBJC_ASSOCIATION_COPY_NONATOMIC`。
+
+对于整数等基本类型，通常先包装为 `NSNumber`，再使用合适的对象关联策略。
+
+## 六、关联对象和 `@property` 到底是什么关系？
+
+这是本节最需要建立的认知。
+
+```
+@property
+```
+
+声明属性接口，描述属性的名称和类型等信息。
+
+getter / setter
+
+提供真正的读取和写入行为。Category 中通常需要自己实现。
+
+关联对象 API
+
+为对象附加和读取额外的数据，而不需要直接增加实例变量。
+
+这三者不是同一个概念：声明属性并不会自动创建关联对象；关联对象也不会自动生成 getter 和 setter。需要我们将存取方法与关联对象 API 连接起来。
+
+还有一个补充：`objc_removeAssociatedObjects(person)` 会移除 `person` 的全部关联对象，可能影响其他代码添加的关联数据。因此，一般不应把它当作删除某一个属性的常规方法。若需要移除单项关联值，可以将对应 key 的 value 设置为 `nil`。
+
+## 七、把这一节放回 Runtime 的主线
+
+你已经学过：
+
+1. `isa` 和 `superclass`：对象如何找到所属类，类如何组织继承关系。
+2. `SEL`、`Method` 和 `IMP`：方法如何被识别、查找和执行。
+3. 动态方法解析与消息转发：常规查找失败后，Runtime 如何处理消息。
+4. Category：如何扩展已有类的方法。
+5. Method Swizzling：如何交换方法的实现。
+6. 关联对象：如何给现有对象附加额外的数据。
+
+它们都围绕同一个核心问题展开：Objective-C 对象、类、方法和消息之间的关系，如何由 Runtime 在运行时管理。
+
+下一节适合学习 Runtime 的属性与实例变量相关 API，例如 `class_copyPropertyList`、`class_copyIvarList`、`class_getInstanceVariable`。这样你就能进一步理解：Runtime 如何读取类的属性元数据、实例变量元数据，以及它们与实际对象内存布局之间的区别。
