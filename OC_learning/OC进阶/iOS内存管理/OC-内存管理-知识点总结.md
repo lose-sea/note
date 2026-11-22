@@ -279,10 +279,153 @@ id b = [NSMutableArray array];    // 不持有
 
 | 修饰符 | 计数 | 自动置 nil | 用途 |
 | --- | --- | --- | --- |
-| `__strong` | +1 | — | 默认 |
+| `__strong` | +1 | — | 一级指针默认 |
 | `__weak` | 不 +1 | ✅ | delegate、Block |
 | `__unsafe_unretained` | 不 +1 | ❌ | 极特殊场景 |
-| `__autoreleasing` | 延迟 -1 | — | `NSError **` |
+| `__autoreleasing` | 延迟 -1 | — | **二级指针默认**、out-param |
+
+### 核心规则：二级指针默认 `__autoreleasing`
+
+> **ARC 下，所有没有显式指定所有权修饰符的 Objective-C 对象二级指针，其指向物默认是 `__autoreleasing`。**
+
+```objc
+NSError **err;       // ≡ NSError * __autoreleasing *err
+NSString **str;      // ≡ NSString * __autoreleasing *str
+id *obj;             // ≡ id __autoreleasing *obj
+```
+
+两级要看清楚：
+
+```objc
+NSError * __autoreleasing * p;
+//        └──────┬──────┘  └┬┘
+//       指向物的修饰符      外层指针（指针本身不参与计数）
+```
+
+| 声明 | 展开 | 被调用方写入 |
+| --- | --- | --- |
+| `NSError **` | `NSError * __autoreleasing *` | **+0**（autoreleased） |
+| `NSError * __autoreleasing *` | 同上 | **+0** |
+| `NSError * __strong *` | 指向 strong 指针 | **+1**（所有权转移） |
+| `id __weak *` | 指向 weak 指针 | 弱引用 |
+
+### 为什么默认是 `__autoreleasing`
+
+1. **兼容 MRC 约定**：out-param 本来返回 autoreleased 对象；
+2. **所有权契约最简单**：被调用方写 +0，你不用管释放；
+3. **允许 `&strongVar` 隐式转换**：编译器自动插临时变量 + 写回。
+
+### 调用时的隐式转换
+
+```objc
+NSError *error = nil;          // __strong
+[self doSomething:&error];     // &error 是 __strong *，类型不匹配
+```
+
+编译器生成的伪代码：
+
+```objc
+NSError *error = nil;
+
+NSError * __autoreleasing tmp = error;   // ① 建临时变量
+BOOL ok = [self doSomething:&tmp];        // ② 传临时变量地址
+error = tmp;                              // ③ 写回，strong 接管
+```
+
+**这就是「二级指针默认 `__autoreleasing`」能安全工作的原因**：方法内部改的是 `tmp`，返回后 ARC 把值写回 `error`，`error` 作为强引用持有它，池 drain 也不会变野指针。
+
+### 举例：标准 out-param 写法
+
+```objc
+// 声明（不用写 __autoreleasing）
+- (BOOL)loadConfig:(NSDictionary **)outConfig
+             error:(NSError **)outError;
+
+// 实现
+- (BOOL)loadConfig:(NSDictionary **)outConfig
+             error:(NSError **)outError {
+    if (出错了) {
+        if (outError) {
+            *outError = [NSError errorWithDomain:@"Net" code:-1 userInfo:nil];  // +0
+        }
+        return NO;
+    }
+    if (outConfig) {
+        *outConfig = @{@"timeout": @30};   // +0
+    }
+    return YES;
+}
+
+// 调用
+NSDictionary *config = nil;    // strong
+NSError *error = nil;          // strong
+BOOL ok = [self loadConfig:&config error:&error];
+if (!ok) {
+    NSLog(@"%@", error);
+    return;
+}
+NSLog(@"%@", config);          // 已被写回，安全
+```
+
+**三条纪律**：
+
+1. 进入方法先判 `outXxx != NULL`（调用方可能不关心）；
+2. 失败时不要写 `*outConfig`，成功时不要写 `*outError`；
+3. 赋给 `*outXxx` 的必须是 **+0** 对象（便捷构造器 / 字面量 / 常量）。
+
+### 坑：把 `alloc` 的对象赋给默认二级指针
+
+```objc
+// ❌ 泄漏：alloc 是 +1，但契约要求 +0
+- (BOOL)load:(NSString **)outStr {
+    *outStr = [[NSString alloc] initWithFormat:@"x"];
+    return YES;
+}
+
+// ✅ 方案 1：用便捷构造器（+0）
+- (BOOL)load:(NSString **)outStr {
+    *outStr = [NSString stringWithFormat:@"x"];
+    return YES;
+}
+
+// ✅ 方案 2：显式声明为 __strong *，契约改为 +1
+- (BOOL)load:(NSString * __strong *)outStr {
+    *outStr = [[NSString alloc] initWithFormat:@"x"];
+    return YES;
+}
+```
+
+### 坑：`__autoreleasing` 变量长期保存
+
+```objc
+// 先定义一个遵守 +0 契约的 load:
+- (BOOL)load:(NSString **)outStr {
+    if (outStr) *outStr = [NSString stringWithFormat:@"x"];   // +0
+    return YES;
+}
+
+// 调用方如果把结果存在 __autoreleasing 变量里
+NSString * __autoreleasing s = nil;
+[self load:&s];
+@autoreleasepool { /* 这里 s 还能用 */ }
+// 当前池 drain 之后 s 就是野指针
+
+// ✅ 立即转 strong
+NSString * __autoreleasing tmp = nil;
+[self load:&tmp];
+NSString *keep = tmp;   // strong 接管，池 drain 也不影响
+```
+
+### 什么时候显式写
+
+| 场景 | 写法 |
+| --- | --- |
+| 普通 out-param | `NSError **`（默认即可） |
+| 强调语义 / 与协议对齐 | `NSError * __autoreleasing *` |
+| 所有权转移 | `NSString * __strong *` |
+| 弱引用 out-param | `id __weak *` |
+
+**日常业务代码不要写 `__autoreleasing`**，让默认规则生效；只有需要强调所有权时才显式标注。
 
 ### ARC 禁止
 
@@ -824,6 +967,11 @@ CF 创建规则：`Create` / `Copy` 归你，`Get` 不归你。
 | Tagged Pointer | 小值编码进指针，不分配堆、不走计数 |
 | 深拷贝怎么做 | copyItems / 归档 / 手动递归 / copyWithZone |
 | CF 三种桥接 | `__bridge` / `__bridge_retained` / `__bridge_transfer` |
+| 二级指针默认修饰符 | `__autoreleasing`（指向物），一级指针默认 `__strong` |
+| `NSError **` 展开是什么 | `NSError * __autoreleasing *`，写入 +0 对象 |
+| 传 `&strongVar` 给 out-param 会发生什么 | ARC 建临时 `__autoreleasing` 变量，调用后写回 |
+| `__strong *` 和默认二级指针的区别 | 前者要求被调用方写入 +1，后者 +0 |
+| `__autoreleasing` 能修饰属性吗 | 不能，属性只能用 assign/strong/weak/copy |
 
 ---
 
@@ -851,6 +999,11 @@ CF 创建规则：`Create` / `Copy` 归你，`Get` 不归你。
 | 18 | dealloc 中可随意调用方法 | 可能触发副作用 |
 | 19 | 泄漏一定崩溃 | 可能只是缓慢增长 |
 | 20 | 图片文件小就不占内存 | 解码后按像素算 |
+| 21 | `NSError **` 就是普通二级指针 | 展开是 `NSError * __autoreleasing *` |
+| 22 | 所有指针都默认 `__strong` | 一级 `strong`，二级指向物默认 `__autoreleasing` |
+| 23 | `__autoreleasing` 变量能长期保存 | 池 drain 后失效，需 strong 接管 |
+| 24 | `__autoreleasing` 可用于属性 | 不能，属性只有 assign/strong/weak/copy |
+| 25 | 显式 `__strong *` 更安全 | 反而要求写入 +1 对象，写错就过度释放 |
 
 ---
 
@@ -995,3 +1148,5 @@ NS_VALID_UNTIL_END_OF_SCOPE Person *p = ...;
 | 自动释放池 | 延迟处理的垃圾桶 |
 | 内存泄漏 | 人走了，房还占着 |
 | Tagged Pointer | 小值不住房，住指针里 |
+| `__autoreleasing` | 二级指针的默认住客：先住池里，再搬回家 |
+| `NSError **` | 不是"指针的指针"，是"指向池中指针的指针" |

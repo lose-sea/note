@@ -1101,6 +1101,8 @@ __weak Person *wp = p;         // 变量本身是 weak
 
 ### `__autoreleasing` 的典型场景
 
+最常见的形态是「传出参数」（out-parameter）：
+
 ```objc
 - (BOOL)doSomething:(NSError * __autoreleasing *)error {
     if (失败) {
@@ -1112,7 +1114,382 @@ __weak Person *wp = p;         // 变量本身是 weak
 
 ARC 下 `NSError **` 默认被推断为 `NSError * __autoreleasing *`，因为传出参数需要在方法返回后仍然有效。
 
-## 4.4 ARC 下的引用计数变化
+> `__autoreleasing` 是四个修饰符里最容易被忽略、但规则最特殊的一个：**它管的是「二级指针的指向物」**。下一节单独展开。
+
+## 4.4 `__autoreleasing` 与二级指针
+
+### 4.4.1 一句话规则
+
+> **在 ARC 下，凡是「指向 Objective-C 对象指针的指针」（二级指针），如果没有显式写所有权修饰符，它指向的那一级默认就是 `__autoreleasing`。**
+
+```objc
+NSError **err;          // 等价于 NSError * __autoreleasing *err
+NSString **str;         // 等价于 NSString * __autoreleasing *str
+id *obj;                // 等价于 id __autoreleasing *obj
+NSArray **list;         // 等价于 NSArray * __autoreleasing *list
+```
+
+注意区分两级：
+
+```objc
+NSError * __autoreleasing * p;
+//        └──────┬──────┘  └┬┘
+//         指向物的修饰符    外层的指针本身（指针不参与引用计数）
+```
+
+- **一级指针**（`NSError *`）默认 `__strong`；
+- **二级指针的指向物**（`NSError **` 里的那个 `NSError *`）默认 `__autoreleasing`。
+
+这条规则只对「Objective-C 对象指针」生效。`int *`、`CGRect *`、`void *` 这些不参与引用计数，没有所有权修饰符的概念。
+
+### 4.4.2 五种写法的对照
+
+| 写法 | 展开后 | 语义 | 典型用途 |
+| --- | --- | --- | --- |
+| `NSError **` | `NSError * __autoreleasing *` | 被调用方写入 **autoreleased** 对象 | 绝大多数 out-param |
+| `NSError * __autoreleasing *` | 同上 | 显式表达同一语义 | 与协议签名对齐、强调语义 |
+| `NSError * __strong *` | 指向 strong 指针 | 被调用方写入 **+1** 对象 | 所有权转移（少见） |
+| `NSError * __weak *` | 指向 weak 指针 | 被调用方写入 weak 引用 | 弱引用 out-param（很少见） |
+| `NSError * __unsafe_unretained *` | 指向裸指针 | 不管理生命周期 | 极特殊场景 |
+
+### 4.4.3 为什么默认是 `__autoreleasing`
+
+三个原因，缺一不可：
+
+**原因 1：与 MRC 时代的约定保持一致**
+
+MRC 下 out-param 的标准写法就是「返回 autoreleased 对象」：
+
+```objc
+// MRC
+- (BOOL)doSomething:(NSError **)error {
+    if (失败) {
+        *error = [NSError errorWithDomain:@"..." code:1 userInfo:nil];
+        // errorWithDomain: 返回 autoreleased 对象，调用方不需要 release
+    }
+    return YES;
+}
+```
+
+ARC 沿用这个约定，老代码可以无缝迁移。
+
+**原因 2：让「传 `&strongLocal`」成为可能**
+
+```objc
+NSError *error = nil;         // __strong 局部变量
+[self doSomething:&error];    // &error 的类型是 NSError * __strong *
+```
+
+参数是 `NSError * __autoreleasing *`，实参是 `NSError * __strong *`，类型并不匹配，但 ARC 允许这种传递，并自动插入「临时变量 + 写回」（见 4.4.4）。
+
+如果默认是 `__strong *`，虽然类型直接匹配、不需要写回，但语义会变成「被调用方必须交出 +1 对象」：
+
+- 所有历史实现（写 `[NSError errorWithDomain:...]` 这种 +0 对象）都要改；
+- MRC 调用方会按「+0」使用，导致泄漏；
+- 每个 out-param 都要多一次 retain/release。
+
+`__autoreleasing` 则让 callee 只写 +0、caller 不必管释放，语义最轻。
+
+**原因 3：所有权契约最简单**
+
+| 契约 | 被调用方职责 | 调用方职责 |
+| --- | --- | --- |
+| `__autoreleasing *` | 写入 autoreleased（+0）对象即可 | 需要长期持有时自己 retain（ARC 自动做） |
+| `__strong *` | 按约定写入 +1 对象 | 按约定负责最终 release |
+| `__unsafe_unretained *` | 不保证生命周期 | 自己保证对象存活 |
+
+绝大多数 API 都想表达第一种：**「我只是把结果告诉你，你自己决定要不要留着」**。
+
+### 4.4.4 编译器到底插了什么代码
+
+#### 场景一：被调用方
+
+```objc
+- (BOOL)loadConfig:(NSDictionary **)outConfig
+             error:(NSError **)outError {
+    if (出错了) {
+        if (outError) {
+            *outError = [NSError errorWithDomain:@"Net" code:-1 userInfo:nil];
+        }
+        return NO;
+    }
+    if (outConfig) {
+        *outConfig = @{@"timeout": @30};
+    }
+    return YES;
+}
+```
+
+`NSDictionary **` 展开为 `NSDictionary * __autoreleasing *`。对 `*outError` 赋值时，ARC 必须保证「写进去的对象一定在自动释放池里」。编译器按右侧对象的已知所有权选择不同指令（以下为 arm64 实测）：
+
+**情况 A：右侧是 `alloc` / `init` 出来的 +1 对象** → 直接 `objc_autorelease`（把所有权交给池）
+
+```objc
+*outError = [[NSError alloc] initWithDomain:@"Net" code:1 userInfo:nil];
+
+// 生成：
+//   bl  _objc_alloc
+//   bl  _objc_msgSend$initWithDomain:code:userInfo:   ← +1
+//   bl  _objc_autorelease                              ← 所有权转交池
+//   str x0, [x8]                                       ← 写入 *outError
+```
+
+**情况 B：右侧是便捷构造器返回的 +0 对象**（`errorWithDomain:`） → 先 `objc_retainAutoreleasedReturnValue`（吃掉 RV 优化），再 `objc_autorelease`
+
+```objc
+//   bl  _objc_msgSend$errorWithDomain:code:userInfo:
+//   bl  _objc_retainAutoreleasedReturnValue
+//   bl  _objc_autorelease
+```
+
+**情况 C：右侧是字面量 / 常量**（`@[@1, @2]`、`@"str"`）→ 直接用 `objc_retainAutorelease`（retain + autorelease 一步到位，净计数不变）
+
+```objc
+//   bl  _objc_retainAutorelease
+```
+
+三种情况的共同目标：**赋值完成后，`*outError` 指向的对象一定在当前池里**。所以：
+
+- 调用方拿到时对象有效（不会在方法返回瞬间被释放）；
+- 调用方不持有它也不会泄漏（池 drain 时自然释放）；
+- 池 drain 后如果没人持有，对象自然销毁。
+
+> **实践含义**：你不需要关心编译器插的是 `autorelease` 还是 `retainAutorelease`，只要记住**赋给 `__autoreleasing` 变量的对象最终都会进池**即可。
+
+#### 场景二：调用方
+
+```objc
+NSDictionary *config = nil;   // __strong
+NSError *error = nil;         // __strong
+BOOL ok = [self loadConfig:&config error:&error];
+```
+
+`&config` 的类型是 `NSDictionary * __strong *`，与参数 `NSDictionary * __autoreleasing *` 不匹配，但 ARC 允许隐式转换。编译器生成的伪代码：
+
+```objc
+NSDictionary *config = nil;
+NSError *error = nil;
+
+// ① 为每个二级指针参数创建临时变量（类型是 __autoreleasing）
+NSDictionary * __autoreleasing tmpConfig = config;
+NSError * __autoreleasing tmpError = error;
+
+// ② 传临时变量的地址
+BOOL ok = [self loadConfig:&tmpConfig error:&tmpError];
+
+// ③ 调用返回后写回（隐含 objc_storeStrong，即 retain 新值 + release 旧值）
+config = tmpConfig;
+error = tmpError;
+```
+
+所以：
+
+- 你在方法内部写 `*outConfig = ...`，改的是 `tmpConfig`；
+- 方法返回后，ARC 把 `tmpConfig` 的值**写回** `config`；
+- 写回时 `config` 作为强引用会持有该对象，即使池 drain 也不会变野指针。
+
+**这就是「二级指针默认 `__autoreleasing`」能安全工作的完整机制。**
+
+#### 场景三：显式写 `__strong *` 会怎样
+
+```objc
+- (BOOL)loadConfig:(NSDictionary * __strong *)outConfig;
+```
+
+此时不产生临时变量，`&config` 直接传入（arm64 实测：默认版本有 2 处 `objc_storeStrong`，`__strong *` 版本只有 1 处——少了写回那一步）。被调用方必须写入 **+1** 对象：
+
+```objc
+- (BOOL)loadConfig:(NSDictionary * __strong *)outConfig {
+    if (outConfig) {
+        *outConfig = [[NSDictionary alloc] initWithObjectsAndKeys:@30, @"timeout", nil];
+        //           ^^^^^^^^^^^^^^^^^^^^^ +1，所有权转移给调用方
+    }
+    return YES;
+}
+```
+
+如果这里偷懒写成 `*outConfig = @{@"timeout": @30};`（+0），调用方按 +1 处理，作用域结束 release 一次 → **过度释放崩溃**。
+
+| 参数声明 | 被调用方写入 | 实参是 `__strong *` 时是否插临时变量 + 写回 | 调用方汇编特征 |
+| --- | --- | --- | --- |
+| `NSError **`（默认） | **+0**（autoreleased） | 是 | 2 次 `objc_storeStrong` |
+| `NSError * __autoreleasing *` | **+0** | 是 | 同上 |
+| `NSError * __strong *` | **+1** | 否 | 1 次 `objc_storeStrong` |
+
+### 4.4.5 完整示例：带 out-param 的解析方法
+
+```objc
+// Model.h
+@interface ConfigParser : NSObject
+
+/// 解析成功时通过 outConfig 返回结果；失败时通过 outError 返回错误。
+/// 两个参数都是默认的 __autoreleasing 二级指针。
+- (BOOL)parseData:(NSData *)data
+       outConfig:(NSDictionary **)outConfig
+        outError:(NSError **)outError;
+
+@end
+```
+
+```objc
+// Model.m
+- (BOOL)parseData:(NSData *)data
+       outConfig:(NSDictionary **)outConfig
+        outError:(NSError **)outError {
+
+    if (data.length == 0) {
+        if (outError) {
+            *outError = [NSError errorWithDomain:@"ConfigParser"
+                                            code:1001
+                                        userInfo:@{NSLocalizedDescriptionKey: @"数据为空"}];
+        }
+        return NO;
+    }
+
+    NSError *jsonError = nil;
+    id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+    if (![json isKindOfClass:[NSDictionary class]]) {
+        if (outError) {
+            *outError = jsonError ?: [NSError errorWithDomain:@"ConfigParser"
+                                                         code:1002
+                                                     userInfo:nil];
+        }
+        return NO;
+    }
+
+    if (outConfig) {
+        *outConfig = json;   // +0，符合 __autoreleasing 契约
+    }
+    return YES;
+}
+```
+
+调用：
+
+```objc
+NSDictionary *config = nil;   // strong
+NSError *error = nil;         // strong
+
+BOOL ok = [parser parseData:data outConfig:&config outError:&error];
+if (!ok) {
+    NSLog(@"解析失败：%@", error);
+    return;
+}
+NSLog(@"配置：%@", config);   // config 已被写回，强引用持有
+```
+
+**要点**：
+
+1. 进入方法先判断 `outConfig` / `outError` 是否为 `NULL`——调用方可以只关心其中一个；
+2. 失败时**不要**给 `*outConfig` 赋值，成功时**不要**给 `*outError` 赋值；
+3. 赋给 `*outXxx` 的对象必须是 autoreleased（或常量），不能是 `alloc` 出来的 +1 对象。
+
+### 4.4.6 常见坑
+
+#### 坑 1：把 `alloc` 出来的对象赋给默认二级指针
+
+```objc
+// ❌ 泄漏：alloc 是 +1，但契约要求 +0，没人 release
+- (BOOL)load:(NSString **)outStr {
+    *outStr = [[NSString alloc] initWithFormat:@"x"];
+    return YES;
+}
+
+// ✅ 加 autorelease（MRC）或改用便捷构造器（ARC）
+- (BOOL)load:(NSString **)outStr {
+    *outStr = [NSString stringWithFormat:@"x"];   // +0
+    return YES;
+}
+```
+
+ARC 下不能手写 `autorelease`，所以**只能用便捷构造器 / 字面量 / `copy` 之后再交给池**：
+
+```objc
+// ✅ ARC 下若一定要 +1 对象，显式声明为 __strong *
+- (BOOL)load:(NSString * __strong *)outStr {
+    *outStr = [[NSString alloc] initWithFormat:@"x"];   // +1，契约一致
+    return YES;
+}
+```
+
+#### 坑 2：以为 `__autoreleasing` 对象能长期保存
+
+```objc
+- (void)foo {
+    NSString * __autoreleasing s = nil;
+    [self load:&s];
+
+    @autoreleasepool {
+        // 这里 s 还能用
+    }
+    // 如果 s 没有被任何强引用接管，池 drain 后 s 就是野指针
+}
+```
+
+**结论**：`__autoreleasing` 变量只适合「临时接收 out-param 结果」，需要长期保存时**立即转成 `__strong`**：
+
+```objc
+NSString * __autoreleasing tmp = nil;
+[self load:&tmp];
+NSString *keep = tmp;   // strong 接管
+```
+
+#### 坑 3：在 Block / 异步回调里用 out-param
+
+```objc
+// ❌ 危险：方法返回后自动释放池可能已经 drain
+- (void)fetch {
+    __block NSError *error = nil;
+    dispatch_async(queue, ^{
+        [self load:&error];   // 若 load: 内部对象进了主线程的池，这里可能已释放
+    });
+}
+```
+
+正确做法：在**同一个线程、同一个池作用域**内完成「调用 + 取值」，或让方法返回 +1（`__strong *`）。
+
+#### 坑 4：和 `__weak` 混写
+
+```objc
+NSError * __weak *p;   // 合法：指向 weak 指针
+NSError * __weak __autoreleasing *p2;   // ❌ 编译错误：同一级不能有两个所有权修饰符
+```
+
+#### 坑 5：误以为属性可以用 `__autoreleasing`
+
+```objc
+@property (nonatomic, __autoreleasing) NSString *name;   // ❌ 不是合法的属性修饰符
+```
+
+属性的所有权只能由 `assign` / `strong` / `weak` / `copy` / `unsafe_unretained` 决定。
+
+#### 坑 6：C 函数指针 / 回调里的二级指针
+
+```objc
+typedef void (*Callback)(NSError **error);   // 默认仍是 __autoreleasing
+```
+
+跨 C 边界时要格外小心：C 代码不会帮你管理自动释放池，回调返回后对象可能失效。此时应显式用 `__strong *` 并明确所有权。
+
+### 4.4.7 什么时候必须显式写
+
+| 场景 | 写法 | 理由 |
+| --- | --- | --- |
+| 普通 out-param | `NSError **`（默认） | 无需显式，语义已是 `__autoreleasing` |
+| 与协议/父类签名完全一致 | `NSError * __autoreleasing *` | 让头文件自解释，避免读者误解 |
+| 所有权转移 | `NSString * __strong *` | 明确告诉调用方「你要 release」 |
+| 与 CF 桥接 | `CFErrorRef *` + `__bridge` | CF 指针不参与 ARC 所有权 |
+| 弱引用 out-param | `id __weak *` | 极少数 API 需要 |
+
+**实践建议**：日常业务代码**不要**写 `__autoreleasing`，让默认规则生效即可；只有在「签名需要强调所有权」或「与 CF 互操作」时才显式写出。
+
+### 4.4.8 与 `NSError **` 的关系速记
+
+> **`NSError **` 不是「NSError 的二级指针」这么简单，它是「指向一个 autoreleased NSError 指针的指针」。**
+>
+> 你在方法里写 `*error = ...`，写进去的对象会被放进调用方的自动释放池；调用方用 `&error` 传参时，ARC 自动加临时变量和写回，所以看起来像「直接赋值」。
+
+## 4.5 ARC 下的引用计数变化
 
 ```objc
 {
@@ -1132,7 +1509,7 @@ q = nil;
 objc_release(p);                         // -1
 ```
 
-## 4.5 ARC 下的属性
+## 4.6 ARC 下的属性
 
 ```objc
 @property (nonatomic, strong) NSString *name;
@@ -1165,7 +1542,7 @@ objc_release(p);                         // -1
 }
 ```
 
-## 4.6 ARC 下不能做的事
+## 4.7 ARC 下不能做的事
 
 | 禁止 | 原因 |
 | --- | --- |
@@ -1176,7 +1553,7 @@ objc_release(p);                         // -1
 | 在 C 结构体中放对象指针 | 需要 `__unsafe_unretained` 或改用类 |
 | `free()` 一个 OC 对象 | 必须让 ARC 走 dealloc |
 
-## 4.7 ARC 与 C 结构体
+## 4.8 ARC 与 C 结构体
 
 ```objc
 // ❌ 编译错误：ARC 不允许结构体成员是 strong 引用
@@ -1239,7 +1616,7 @@ ARC 需要在对象生命周期结束时插入 `release`，但 C 结构体没有
 | 需要传递结构体 | 用 `NSValue` 的 `valueWithBytes:objCType:` |
 
 
-## 4.8 ARC 与 `__bridge`
+## 4.9 ARC 与 `__bridge`
 
 | 转换 | 语义 | 计数变化 |
 | --- | --- | --- |
@@ -1255,7 +1632,7 @@ NSString *ns = (__bridge_transfer NSString *)cf;        // ARC 接管
 // 不需要 CFRelease
 ```
 
-## 4.9 ARC 的优化：`objc_autoreleaseReturnValue`
+## 4.10 ARC 的优化：`objc_autoreleaseReturnValue`
 
 ARC 编译器会做 **返回值优化**，避免不必要的 autorelease：
 
@@ -1280,7 +1657,7 @@ Person *p = objc_retainAutoreleasedReturnValue([self createPerson]);
 
 `objc_autoreleaseReturnValue` 会检查调用方是否紧接着调用了 `objc_retainAutoreleasedReturnValue`，如果是，就**跳过 autorelease** 直接返回，减少一次池操作。这就是所谓的 **RV（Return Value）优化**。
 
-## 4.10 ARC 下的循环引用仍需手动处理
+## 4.11 ARC 下的循环引用仍需手动处理
 
 ARC 只负责"该 retain 时 retain，该 release 时 release"，**不会**分析对象图。所以：
 
@@ -1302,7 +1679,7 @@ self.block = ^{
 };
 ```
 
-## 4.11 方法族：ARC 怎么知道该不该 retain 返回值
+## 4.12 方法族：ARC 怎么知道该不该 retain 返回值
 
 这是 ARC 最容易被忽略、但面试很爱问的一点。
 
@@ -1421,7 +1798,7 @@ NSData *data = [client newRequestData];
 
 > **`alloc` / `new` / `copy` / `mutableCopy` / `init` 开头 = 你拥有；其他 = 不拥有。名字不能乱取。**
 
-## 4.12 ARC 的精确生命周期
+## 4.13 ARC 的精确生命周期
 
 默认情况下，ARC 允许在"最后一次使用"之后就 release 局部变量，而不是等到作用域结束：
 
@@ -1466,7 +1843,7 @@ NS_VALID_UNTIL_END_OF_SCOPE Person *p = [[Person alloc] init];
 | 两者方向相反，别混用 | 一个保命，一个早死 |
 
 
-## 4.13 本章易错点
+## 4.14 本章易错点
 
 | 易错点 | 正确理解 |
 | --- | --- |
@@ -1476,6 +1853,11 @@ NS_VALID_UNTIL_END_OF_SCOPE Person *p = [[Person alloc] init];
 | ARC 下不能写 dealloc | 可以写，但不能调 `[super dealloc]` |
 | `__weak` 一定安全 | 访问瞬间可能被释放，多线程下需要 `strongSelf` 持有 |
 | `assign` 用于对象也安全 | 对象释放后变成野指针，必须用 `weak` |
+| `NSError **` 就是普通二级指针 | 展开是 `NSError * __autoreleasing *`，写入的必须是 +0 对象 |
+| 所有指针都默认 `__strong` | 一级指针默认 `strong`，**二级指针的指向物默认 `__autoreleasing`** |
+| `__autoreleasing` 变量可以长期保存 | 池 drain 后失效，需要 `__strong` 接管 |
+| `__autoreleasing` 可以修饰属性 | 不能，属性只能用 `assign`/`strong`/`weak`/`copy` |
+| 显式写 `__strong *` 更安全 | 反而要求被调用方写入 +1 对象，写错就是过度释放 |
 
 ---
 
@@ -4820,9 +5202,42 @@ self.timer = [NSTimer scheduledTimerWithTimeInterval:1
 - (BOOL)doSomething:(NSError * __autoreleasing *)error;
 ```
 
-原因：方法内部创建的错误对象需要在方法返回后仍然有效，所以放进调用方的自动释放池，由未来的池统一释放。若用 `__strong **`，则所有权语义会混乱（谁负责释放？）。
+原因：
 
-ARC 对 `NSError **` 的参数有特殊推断，所以通常不用显式写 `__autoreleasing`。
+1. **对象要在方法返回后仍然有效**——放进调用方的自动释放池，由未来的池统一释放；
+2. **所有权契约最简单**——被调用方写 +0 对象，调用方不需要负责 release；
+3. **兼容 MRC 约定**——MRC 下 out-param 本来就返回 autoreleased 对象。
+
+若用 `__strong **`，被调用方必须写入 +1 对象，调用方必须负责最终释放，签名一改所有调用点都要审查。
+
+**ARC 的默认规则**：
+
+> 所有没有显式指定所有权修饰符的 Objective-C 对象**二级指针**，其指向物默认是 `__autoreleasing`。
+
+```objc
+NSError **err;       // ≡ NSError * __autoreleasing *err
+NSString **str;      // ≡ NSString * __autoreleasing *str
+id *obj;             // ≡ id __autoreleasing *obj
+```
+
+**调用时的隐式转换**：
+
+```objc
+NSError *error = nil;            // __strong
+[self doSomething:&error];       // &error 是 __strong *，与 __autoreleasing * 不匹配
+                                 // 编译器自动插入临时变量 + 写回
+```
+
+编译后大致是：
+
+```objc
+NSError *error = nil;
+NSError * __autoreleasing tmp = error;
+BOOL ok = [self doSomething:&tmp];
+error = tmp;                     // 写回，strong 接管
+```
+
+**实践**：日常不写 `__autoreleasing`；只有在需要强调所有权转移（`__strong *`）或与 CF 互操作时才显式标注。
 
 ### Q24：`objc_setProperty` 是什么？为什么 setter 不直接赋值？
 
@@ -4978,7 +5393,7 @@ Block 的结构体在 copy 到堆时，会对**对象类型**的捕获变量调�
 
 `push` 返回的是哨兵在 page 中的地址（`token`）。`pop(token)` 直接从链表头（hot page）开始，按 `next` 指针向前遍历，直到遇到 `token` 对应的位置。由于池是**后进先出**的栈结构，遍历范围就是本次 push 之后的所有对象，不需要扫描整个链表。
 
-## 15.2 二十个易错点汇总
+## 15.2 二十五个易错点汇总
 
 | # | 易错点 | 正确理解 |
 | --- | --- | --- |
@@ -5002,6 +5417,11 @@ Block 的结构体在 copy 到堆时，会对**对象类型**的捕获变量调�
 | 18 | `dealloc` 中可随意调用方法 | 可能触发副作用 |
 | 19 | 内存泄漏一定崩溃 | 可能只是缓慢增长 |
 | 20 | 图片文件小就不占内存 | 解码后按像素算 |
+| 21 | `NSError **` 就是普通二级指针 | 展开是 `NSError * __autoreleasing *`，写入 +0 对象 |
+| 22 | 所有指针都默认 `__strong` | 一级 `strong`；二级指向物默认 `__autoreleasing` |
+| 23 | `__autoreleasing` 变量能长期保存 | 池 drain 后失效，需 `__strong` 接管 |
+| 24 | `__autoreleasing` 可用于属性 | 不能，属性只有 assign / strong / weak / copy |
+| 25 | 显式写 `__strong *` 更安全 | 反而要求写入 +1 对象，写错就是过度释放 |
 
 ## 15.3 自测清单
 
