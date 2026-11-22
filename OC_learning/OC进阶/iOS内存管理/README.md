@@ -36,7 +36,7 @@ flowchart TD
 | 6 | copy 与深浅拷贝 | 可变/不可变、`NSCopying`、深拷贝三法 |
 | 7 | Block 的内存管理 | 三种类型、捕获规则、`__block`、循环引用 |
 | 8 | weak 原理与弱引用容器 | weak 表、注册/读取/销毁、`NSHashTable` |
-| 9 | autorelease 与自动释放池 | Page 结构、push/pop、何时手动加池 |
+| 9 | autorelease 与自动释放池 | 判定表、进池对比、强引用提前消失（str=nil）、Page 结构、push/pop |
 | 10 | dealloc 与对象销毁 | 调用链、该做/不该做、KVO/通知/Timer |
 | 11 | 循环引用 | 十大场景、破环方式、检测手段、单例 |
 | 12 | 内存泄漏、关联对象与优化 | 工具链、图片降采样、mmap、Jetsam/OOM |

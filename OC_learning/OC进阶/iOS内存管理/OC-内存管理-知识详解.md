@@ -3054,7 +3054,7 @@ self.strongRef = p;
 
 ## 9.1 `autorelease` 是什么
 
-> **`autorelease` 把对象加入当前自动释放池，池销毁（drain）时对所有对象统一 `release`。**
+> **`autorelease` 把对象加入当前自动释放池，池销毁（drain / pop）时对所有入池的对象统一执行一次 `release` 操作。**
 
 ```objc
 - (NSString *)fullName {
@@ -3063,9 +3063,119 @@ self.strongRef = p;
 }
 ```
 
-ARC 下不能手动调 `autorelease`，但编译器仍会插入 `objc_autoreleaseReturnValue`。
+ARC 下禁止显式调用 `[obj autorelease]`，但底层机制并未改变——编译器在编译非 `alloc`/`new`/`copy`/`mutableCopy` 开头的方法时，会自动根据所有权契约插入相应的 autorelease 逻辑（配合返回值优化）。
 
-## 9.2 自动释放池的结构
+## 9.2 哪些对象会进入 `autoreleasepool`？
+
+在日常开发中，判断一个对象是否会进入自动释放池，关键看 **Cocoa 命名约定（Cocoa Method Naming Convention）**：
+
+> **Cocoa 命名约定：**
+> 1. **方法名以 `alloc`、`new`、`copy`、`mutableCopy` 开头**：表示调用者拥有该对象（强引用计数 +1），**不会进入 autoreleasepool**，由调用者负责释放（ARC 下由离开作用域或置 nil 时的 release 负责）。
+> 2. **其他方法名（如 `stringWithFormat:`、`array`、`date` 等）**：返回具有 autorelease 语义的对象，**会进入 autoreleasepool**，由自动释放池统一安排释放。
+> 3. **显式使用 `__autoreleasing` 修饰符的对象**：强制注册到当前自动释放池。
+
+### 判定汇总表
+
+| 情况 | 是否进入 autoreleasepool | 说明 | 示例 |
+| --- | :---: | --- | --- |
+| `[[Class alloc] init]` | **否** | 调用者持有（+1），不进入池 | `[[NSString alloc] initWithFormat:@"Hello"]` |
+| `[Class new]` | **否** | 调用者持有（+1），不进入池 | `[Person new]` |
+| `[array copy]` / `[array mutableCopy]` | **否** | 调用者持有（+1），不进入池 | `[list copy]` |
+| `[NSString stringWithFormat:]` 等便利构造方法 | **是** | 返回具有 autorelease 语义的对象，进池 | `[NSString stringWithFormat:@"Hello_%d", i]` |
+| `[NSArray array]`、`[NSDate date]` 等类方法 | **是** | 方法名不以 alloc/new/copy/init 开头 | `[NSArray arrayWithObject:obj]` |
+| `__autoreleasing` 修饰的对象 | **是** | 显式指定加入当前自动释放池 | `NSError * __autoreleasing *outError` |
+
+## 9.3 核心案例对比：进池 vs 不进池
+
+我们通过具体代码，深入剖析对象在 ARC 下的完整生命周期与执行过程。
+
+### 1. 不进入 autoreleasepool
+
+```objc
+@autoreleasepool {
+    NSString *str = [[NSString alloc] initWithFormat:@"Hello"];
+    NSLog(@"%@", str);
+}
+```
+
+**执行过程**：
+1. `alloc init` 在堆上创建对象，初始引用计数为 1。
+2. 指针 `str` 建立强引用（调用者持有）。
+3. 离开作用域，局部变量 `str` 销毁，ARC 自动插入 `objc_release(str)` 释放其强引用。
+4. 此时引用计数归 0，如果没有其他引用，**对象在这个瞬间就可以被立即释放**（调用 `dealloc`）。
+
+### 2. 进入 autoreleasepool
+
+```objc
+@autoreleasepool {
+    NSString *str = [NSString stringWithFormat:@"Hello"];
+    NSLog(@"%@", str);
+}
+```
+
+**执行过程**：
+1. `stringWithFormat:` 返回具有 **autorelease 语义**的对象（对象已被安排加入当前自动释放池）。
+2. 指针 `str` 建立强引用，接收该对象。
+3. 离开作用域，局部变量 `str` 销毁，ARC 自动插入 `objc_release(str)` 释放 `str` 的强引用。
+4. 自动释放池排空（pool drain / pop），执行之前安排的自动释放操作（对池内对象发送 `release`）。
+5. 引用计数归 0，如果没有其他引用，对象正式完成释放。
+
+---
+
+### 3. 真正的区别：强引用提前消失（`str = nil`）
+
+在上面的代码中，因为 `str` 离开作用域的时机与 `@autoreleasepool` 右大括号排空的时机挨在一起，直观上感知不深。
+
+**它们最本质的区别在于：当强引用提前断开时，对象的存活状态截然不同！**
+
+#### 场景 A：具有 autorelease 语义的对象置为 nil
+
+假设我们把强引用提前置为 nil：
+
+```objc
+@autoreleasepool {
+    NSString *str = [NSString stringWithFormat:@"Hello"];
+
+    str = nil;
+
+    NSLog(@"继续执行后续耗时操作...");
+}
+```
+
+这里要注意：
+- `str = nil` 会释放 `str` 持有的强引用。
+- **但对象还具有 autorelease 语义，自动释放操作尚未执行**（仍在当前的 `AutoreleasePoolPage` 中等待 pop）。
+- **因此，对象通常还会暂时存活在内存中**。
+- 等到 `autoreleasepool` 排空，才真正完成释放。
+
+#### 场景 B：非 autorelease 对象置为 nil
+
+而如果使用 `alloc init`：
+
+```objc
+@autoreleasepool {
+    NSString *str = [[NSString alloc] initWithFormat:@"Hello"];
+
+    str = nil;
+
+    NSLog(@"继续执行后续耗时操作...");
+}
+```
+
+执行细节：
+- 该对象只由 `str` 强引用持有，**根本没有进入 autoreleasepool**。
+- 当执行 `str = nil` 时，ARC 立即释放强引用。
+- **如果没有其他强引用，对象在 `str = nil` 时就可以立刻释放，不必等待自动释放池排空**。
+
+> [!TIP] 实验验证提示（避开 Tagged Pointer 优化）
+> 在 64 位系统下，短字符串（如 `"Hello"`）可能会被 runtime 自动优化为 **Tagged Pointer**（值直接编码在指针本身，不走堆分配也不走引用计数）。
+> 如果你想通过重写 `-dealloc` 打印日志来观察上述现象，建议使用自定义类（如 `Person`）或稍长的动态字符串：
+> ```objc
+> Person *p = [Person personWithName:@"Tom"]; // 进池
+> Person *p2 = [[Person alloc] initWithName:@"Tom"]; // 不进池
+> ```
+
+## 9.4 自动释放池的结构
 
 ```c
 class AutoreleasePoolPage {
@@ -3085,7 +3195,7 @@ class AutoreleasePoolPage {
 - 每页大小 4096 字节，除去头部约 504 个对象指针；
 - `next` 指向当前可写位置，push 时写入对象地址并 `next++`。
 
-## 9.3 `@autoreleasepool` 的原理
+## 9.5 `@autoreleasepool` 的原理
 
 ```objc
 @autoreleasepool {
@@ -3115,7 +3225,7 @@ objc_autoreleasePoolPop(pool);
 2. 对遍历到的每个对象调 `objc_release`；
 3. 把 `next` 移回哨兵位置。
 
-## 9.4 嵌套池
+## 9.6 嵌套池
 
 ```objc
 @autoreleasepool {          // 外层池
@@ -3128,7 +3238,7 @@ objc_autoreleasePoolPop(pool);
 
 嵌套时，`pop` 只释放到当前池的哨兵为止，不会影响外层。
 
-## 9.5 主线程的自动释放池
+## 9.7 主线程的自动释放池
 
 - 主线程的 RunLoop 在每次事件循环开始时 `push` 一个池，结束时 `pop`；
 - 所以主线程上的 autorelease 对象通常在**当前 RunLoop 迭代结束**时释放；
@@ -3145,7 +3255,7 @@ dispatch_async(dispatch_get_global_queue(0, 0), ^{
 });
 ```
 
-## 9.6 什么时候需要手动加 `@autoreleasepool`
+## 9.8 什么时候需要手动加 `@autoreleasepool`
 
 | 场景 | 原因 |
 | --- | --- |
@@ -3164,7 +3274,7 @@ for (int i = 0; i < 10000; i++) {
 }
 ```
 
-## 9.7 `autorelease` 的返回值优化（RV）
+## 9.9 `autorelease` 的返回值优化（RV）
 
 ARC 下：
 
@@ -3183,19 +3293,7 @@ return objc_autoreleaseReturnValue(p);
 
 `objc_autoreleaseReturnValue` 会检查调用方的返回地址，如果调用方紧接着调用 `objc_retainAutoreleasedReturnValue`，就直接返回对象并跳过 autorelease。这避免了"放进池又马上取出"的开销。
 
-## 9.8 `autorelease` 与 `release` 的时机对比
-
-```objc
-// release：立即 -1，计数归零立即 dealloc
-Person *p1 = [[Person alloc] init];
-[p1 release];   // 立即 dealloc
-
-// autorelease：延迟 -1，池 drain 时 dealloc
-Person *p2 = [[[Person alloc] init] autorelease];
-// ... 池 drain 时才 dealloc
-```
-
-## 9.9 自动释放池的内存峰值
+## 9.10 自动释放池的内存峰值与强引用陷阱
 
 ```objc
 // ❌ 峰值高：池里的临时对象要等到 RunLoop 本轮结束才释放
@@ -3229,7 +3327,7 @@ for (int i = 0; i < 100000; i++) {
 // 峰值依然是 10 万个对象，只是每个对象少了一次多余的 autorelease 持有
 ```
 
-## 9.10 本章易错点
+## 9.11 本章易错点
 
 | 易错点 | 正确理解 |
 | --- | --- |
@@ -3238,6 +3336,9 @@ for (int i = 0; i < 100000; i++) {
 | ARC 下不能用 `@autoreleasepool` | 可以，且推荐在循环中使用 |
 | autorelease 对象一定在池 drain 时释放 | 如果被 strong 引用，不会释放 |
 | 池是按线程共享的 | 每个线程独立，互不影响 |
+| `alloc init` 出来的对象也会进池 | 否，调用方独自持有，不进池；置 nil 时立即 dealloc |
+| `[Class method]` 永远不进池 | 只要方法名不是以 alloc/new/copy/mutableCopy 开头，就会进池 |
+
 
 ---
 

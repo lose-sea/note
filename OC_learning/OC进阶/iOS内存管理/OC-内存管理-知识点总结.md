@@ -694,6 +694,78 @@ NSPointerArray *array = [NSPointerArray weakObjectsPointerArray];
 
 ## 十、autoreleasepool
 
+### 哪些对象会进入 autoreleasepool？
+
+遵循 **Cocoa 命名约定**：
+- **方法名以 `alloc`、`new`、`copy`、`mutableCopy` 开头**：调用者持有（+1），**不进入** autoreleasepool。
+- **其他方法名（如 `stringWithFormat:`、`array`、`date` 等便利构造方法/类工厂方法）**：返回具有 autorelease 语义的对象，**进入** autoreleasepool。
+- **显式指定 `__autoreleasing` 修饰符**：强制入池。
+
+| 情况 | 是否进入 autoreleasepool | 说明 |
+| --- | :---: | --- |
+| `[[Class alloc] init]` | **否** | 调用者持有，不进入池 |
+| `[Class new]` | **否** | 调用者持有，不进入池 |
+| `[array copy]` / `[array mutableCopy]` | **否** | 调用者持有，不进入池 |
+| `[NSString stringWithFormat:]` 等便利构造方法 | **是** | 返回 autorelease 对象，进池 |
+| `[NSArray array]`、`[NSDate date]` 等类方法 | **是** | 方法名不以 alloc/new/copy/init 开头 |
+| `__autoreleasing` 修饰的对象 | **是** | 显式指定加入当前池 |
+
+### 核心案例对比：进池 vs 不进池
+
+#### 1. 不进入 autoreleasepool
+
+```objc
+@autoreleasepool {
+    NSString *str = [[NSString alloc] initWithFormat:@"Hello"];
+    NSLog(@"%@", str);
+}
+```
+
+**执行过程**：
+1. `alloc init` 创建对象（引用计数 1）。
+2. `str` 建立强引用。
+3. 离开作用域，ARC 释放 `str` 的强引用。
+4. 如果没有其他引用，对象**立即释放**（无需等待池排空）。
+
+#### 2. 进入 autoreleasepool
+
+```objc
+@autoreleasepool {
+    NSString *str = [NSString stringWithFormat:@"Hello"];
+    NSLog(@"%@", str);
+}
+```
+
+**执行过程**：
+1. `stringWithFormat:` 返回具有 autorelease 语义的对象（已注册进当前池）。
+2. `str` 建立强引用。
+3. 离开作用域，ARC 释放 `str` 的强引用。
+4. 自动释放池排空（pool drain），执行之前安排的自动释放操作（向对象发 `release`）。
+5. 如果没有其他引用，对象此时才完成释放。
+
+#### 3. 真正的区别：强引用提前消失（`str = nil`）
+
+```objc
+// 对比 A：进池对象提前置 nil
+@autoreleasepool {
+    NSString *str = [NSString stringWithFormat:@"Hello"];
+    str = nil;
+    NSLog(@"继续执行");
+    // str = nil 释放了强引用，但对象还登记在池中尚未执行 release！
+    // 因此对象在此期间依然存活，直到右大括号池排空才真正释放。
+}
+
+// 对比 B：不进池对象提前置 nil
+@autoreleasepool {
+    NSString *str = [[NSString alloc] initWithFormat:@"Hello"];
+    str = nil;
+    NSLog(@"继续执行");
+    // str = nil 这一刻，对象引用计数直接归 0 立即释放，完全不依赖自动释放池！
+}
+```
+
+*(注：验证 dealloc 建议用自定义对象 `Person` 避开 64 位 Tagged Pointer 优化)*
+
 ### 结构
 
 ```c
