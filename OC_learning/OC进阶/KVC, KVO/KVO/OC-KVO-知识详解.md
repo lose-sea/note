@@ -119,7 +119,7 @@ sequenceDiagram
 // 当前文件全局静态唯一变量，直接取指针自身地址
 static void *PersonAgeKVOContext = &PersonAgeKVOContext;
 
-// 注册
+// 注册  
 [self.person addObserver:self
               forKeyPath:@"age"
                  options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld
@@ -433,6 +433,7 @@ KVO 在带来极大便利的同时，也是 iOS 面试和工程 Crash 统计排�
 - **后果**：直接引发 `EXC_BAD_ACCESS` 野指针崩溃。
 
 ### 2. 重复移除（Over-removing）
+
 - **代码**：
 ```objc
 [p removeObserver:self forKeyPath:@"name"];
@@ -445,6 +446,7 @@ reason: 'Cannot remove an observer <...> for the key path "name" from <Person ..
 ```
 
 ### 3. 未添加即移除
+
 在 `dealloc` 中盲目编写 `removeObserver:`，但在该实例的生命周期里并没有条件触发 `addObserver:`，同样引发上述 `NSRangeException`。
 
 ### 4. 跨线程更新属性引发 UI 渲染崩溃
